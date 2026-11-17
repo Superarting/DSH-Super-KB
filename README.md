@@ -32,12 +32,16 @@ A knowledge-base panel for [DeepSeek Harness](https://github.com/deepseek-ai/Dee
 ### From source
 
 ```bash
-git clone https://github.com/<owner>/DSH-Super-KB.git
+git clone https://github.com/Superarting/DSH-Super-KB.git
 cd DSH-Super-KB
-pnpm install
+pnpm install          # installs @deepseek-ai/schemastery
 ```
 
 Then install the folder as a bundle from the Plugins view.
+
+> **Note:** the bundle imports `@deepseek-ai/schemastery` at load time, so run
+> `pnpm install` in the cloned folder **before** installing it as a bundle.
+> The release archive ships the dependency pre-installed.
 
 ### CLI
 
