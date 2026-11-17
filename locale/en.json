@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "DSH Super KB",
+    "description": "Browse and search knowledge folders: local directories or WebDAV clouds, configurable any time. Adds preview, image and code preview switching, attach-to-session, plus kb_search, kb_read, and kb_list tools so the agent can look up your documents during conversations.",
+    "detail": "docs/DETAIL.md"
+  }
+}
