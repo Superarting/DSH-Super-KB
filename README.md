@@ -11,7 +11,7 @@ A knowledge-base panel for [DeepSeek Harness](https://github.com/deepseek-ai/Dee
 - **Sidebar panel** — a *Knowledge base* icon opens a full-screen panel: file tree on the left, preview on the right.
 - **Sources** — configure any number of **local folders** (native directory picker) and **WebDAV clouds** (URL, username, password, connection test). Sources can be added, edited, or removed at any time.
 - **Browse** — lazy-loading tree with per-type file icons (Word, Excel, PPT, PDF, Markdown, code, image, audio, video, archives…).
-- **Preview** — Markdown rendering with `[[wikilinks]]`, images and PDFs inline, HTML/SVG with a **Preview / Code** toggle, and *Reveal in folder* for anything else.
+- **Preview** — Markdown rendering with `[[wikilinks]]`, images (JPEG/PNG/GIF/WebP/AVIF/BMP/ICO) and SVG inline, PDF reader, **audio / video players**, Office files (DOCX / XLSX / PPTX converted in-process, CSV & TSV as tables), Obsidian `.canvas` boards, and a **Preview / Code** toggle for HTML/SVG.
 - **Search** — BM25-ranked full-text search (CJK bigrams + word terms) with path, line number, snippet, and a relevance score.
 - **Attach to session** — hand a file to a running session in two ways:
   - **as a path** — the agent reads the original file in place and can follow it into neighbouring files in the same folder;

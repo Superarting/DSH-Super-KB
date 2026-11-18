@@ -41,6 +41,7 @@ window.__ModuleLoader__.load({
         searchTruncated: 'Results truncated (time budget reached).', scanned: '{n} files scanned',
         emptyFolder: 'This folder is empty.', loading: 'Loading…', loadFailed: 'Load failed',
         notTextFile: 'Only text files can be previewed.', fileTooLarge: 'Over 10 MB; preview unavailable.',
+        heicUnsupported: 'HEIC/HEIF cannot be previewed in the browser; convert to JPG/PNG or use Reveal in folder.',
         back: 'Back', savedToast: 'Saved', saveFailed: 'Save failed',
         uploadToKb: 'Upload to knowledge base', uploadedTo: 'Uploaded to {name} as {path}',
         uploadFailed: 'Upload failed', uploadReadFailed: 'Original file unavailable',
@@ -104,6 +105,7 @@ window.__ModuleLoader__.load({
         searchTruncated: '结果已截断(达到时间预算)。', scanned: '已扫描 {n} 个文件',
         emptyFolder: '此文件夹为空。', loading: '加载中…', loadFailed: '加载失败',
         notTextFile: '仅文本文件可以预览。', fileTooLarge: '超过 10 MB，无法预览。',
+        heicUnsupported: '浏览器无法内嵌预览 HEIC/HEIF，请转换为 JPG/PNG 或用"打开文件夹"查看。',
         back: '返回', savedToast: '已保存', saveFailed: '保存失败',
         uploadToKb: '上传到知识库', uploadedTo: '已上传到 {name},文件名 {path}',
         uploadFailed: '上传失败', uploadReadFailed: '原文件不可用',
@@ -729,15 +731,17 @@ window.__ModuleLoader__.load({
     // raw base64 route; html/svg/code gets a 预览/代码 toggle) ----------
     const PREVIEW_KIND = (name) => {
       const ext = (name.toLowerCase().split('.').pop() ?? '')
-      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp'].includes(ext)) return 'image'
+      if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico'].includes(ext)) return 'image'
       if (ext === 'svg') return 'svg'
+      if (ext === 'heic' || ext === 'heif') return 'heic'
       if (ext === 'pdf') return 'pdf'
       if (ext === 'html' || ext === 'htm') return 'html'
       if (['docx', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext)) return 'office'
       if (['csv', 'tsv'].includes(ext)) return 'csv'
+      if (ext === 'canvas') return 'canvas'
       if (['css', 'scss', 'less', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'vue', 'json', 'json5', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sh', 'bash', 'sql', 'yaml', 'yml', 'toml', 'xml', 'ini'].includes(ext)) return 'code'
-      if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'].includes(ext)) return 'audio'
-      if (['mp4', 'mov', 'mkv', 'webm', 'm4v'].includes(ext)) return 'video'
+      if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'oga', 'm4a', '3gp', 'weba'].includes(ext)) return 'audio'
+      if (['mp4', 'mov', 'mkv', 'webm', 'm4v', 'ogv'].includes(ext)) return 'video'
       return 'text'
     }
 
@@ -745,7 +749,9 @@ window.__ModuleLoader__.load({
       const { sourceId, path } = props
       const kind = PREVIEW_KIND(path)
       const state = useAsync(() => {
-        if (kind === 'image' || kind === 'pdf' || kind === 'svg' || kind === 'office' || kind === 'csv') return api('raw', { source: sourceId, path })
+        // Binary/converted types go through raw (base64); CSV/TSV are text —
+        // the client builds the table itself from the read endpoint's content.
+        if (kind === 'image' || kind === 'pdf' || kind === 'svg' || kind === 'office' || kind === 'audio' || kind === 'video' || kind === 'heic') return api('raw', { source: sourceId, path })
         return api('read', { source: sourceId, path })
       }, [sourceId, path, kind])
       const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' ? 'preview' : 'code')
@@ -766,6 +772,35 @@ window.__ModuleLoader__.load({
         if (kind === 'image') {
           body = h('div', { className: 'kb-content', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, whiteSpace: 'normal' } },
             h('img', { src: `data:${state.value.mime};base64,${state.value.data}`, alt: name, style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' } }))
+        } else if (kind === 'heic') {
+          // Browsers cannot decode HEIC/HEIF natively — graceful fallback.
+          body = h('div', { className: 'kb-empty' },
+            h('div', { className: 'kb-empty-icon' }, fileTypeIcon(name, 40)),
+            h('div', null, t('heicUnsupported')),
+            h('div', { className: 'kb-empty-desc' }, t('previewUnsupported')))
+        } else if (kind === 'audio') {
+          body = h('div', { className: 'kb-content', style: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, whiteSpace: 'normal' } },
+            h('audio', { controls: true, src: `data:${state.value.mime};base64,${state.value.data}`, style: { width: 'min(480px, 100%)' } }),
+            h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)' } }, name))
+        } else if (kind === 'video') {
+          body = h('div', { className: 'kb-content', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, whiteSpace: 'normal' } },
+            h('video', { controls: true, src: `data:${state.value.mime};base64,${state.value.data}`, style: { maxWidth: '100%', maxHeight: '100%', display: 'block' } }))
+        } else if (kind === 'canvas') {
+          // Obsidian .canvas: JSON {nodes:[{id,type,text|file|url,...}], edges:[...]}
+          let nodes = null
+          let edgeCount = 0
+          try {
+            const parsed = JSON.parse(state.value.content ?? '{}')
+            nodes = Array.isArray(parsed.nodes) ? parsed.nodes : []
+            edgeCount = Array.isArray(parsed.edges) ? parsed.edges.length : 0
+          } catch { nodes = null }
+          body = nodes !== null
+            ? h('div', { className: 'kb-content', style: { padding: 16, whiteSpace: 'normal', overflow: 'auto' } },
+                h('div', { style: { fontSize: 12, color: 'var(--dsw-alias-label-secondary)', marginBottom: 4 } }, `${nodes.length} nodes · ${edgeCount} edges`),
+                nodes.map((node, i) => h('div', { key: node?.id ?? i, style: { border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8, padding: '10px 14px', margin: '8px 0', background: 'var(--dsw-alias-bg-layer1)' } },
+                  h('div', { style: { fontSize: 11, color: 'var(--dsw-alias-label-secondary)', marginBottom: 4 } }, String(node?.type ?? 'node')),
+                  h('div', { style: { fontSize: 13, whiteSpace: 'pre-wrap' } }, String(node?.text ?? node?.file ?? node?.url ?? '')))))
+            : h('div', { className: 'kb-content', style: { whiteSpace: 'pre-wrap' } }, state.value.content ?? '')
         } else if (kind === 'svg') {
           if (view === 'preview') {
             body = h('div', { className: 'kb-content', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, whiteSpace: 'normal' } },

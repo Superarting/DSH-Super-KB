@@ -23,17 +23,15 @@ const ARCHIVE_DIR = 'sessions'
 /** Cap on one archived session card's captured characters. */
 const ARCHIVE_MAX_CHARS = 60000
 
-// Office conversion support
-let mammoth = null
+// Optional heavy dependency: SheetJS for xlsx/xls conversion (absent → graceful fallback).
 let XLSX = null
-try { mammoth = (await import('mammoth')).default } catch {}
 try { XLSX = (await import('xlsx')).default } catch {}
 const TEXT_EXTENSIONS = new Set([
   'md', 'markdown', 'txt', 'text', 'csv', 'tsv', 'json', 'json5', 'jsonc', 'yaml', 'yml',
   'xml', 'html', 'htm', 'css', 'scss', 'less', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'vue',
   'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sh',
   'bash', 'zsh', 'fish', 'ps1', 'sql', 'toml', 'ini', 'cfg', 'conf', 'properties', 'log',
-  'svg', 'tex', 'rst', 'srt', 'vtt',
+  'svg', 'tex', 'rst', 'srt', 'vtt', 'canvas',
 ])
 const TEXT_FILENAMES = new Set(['readme', 'license', 'changelog', 'makefile', 'dockerfile', 'authors', 'notice'])
 /** Rebuildable in-memory BM25 index: sourceId → { docs: Map<relPath, {terms, tf, len}>, df: Map, avgLen, builtAt }. */
@@ -317,6 +315,131 @@ async function readFile(ctx, source, filePath) {
   }
 }
 
+// ---------- built-in Office converters (self-contained: jszip + xmldom) ----------
+
+const escapeHtmlText = (s) => String(s)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
+const OFFICE_PAGE_CSS = '<style>' +
+  'body{font-family:system-ui,-apple-system,sans-serif;line-height:1.65;margin:0;padding:18px 22px;color:#1d2129;}' +
+  'h1,h2,h3,h4,h5,h6{margin:0.9em 0 0.4em;line-height:1.3;}' +
+  'p{margin:0.45em 0;}' +
+  'table{border-collapse:collapse;margin:0.7em 0;max-width:100%;}' +
+  'td,th{border:1px solid #d0d3d9;padding:6px 10px;}' +
+  'th{background:#f2f3f5;}' +
+  '.kb-slide{border:1px solid #d0d3d9;border-radius:8px;padding:14px 18px;margin:12px 0;background:#fff;}' +
+  '.kb-slide-no{color:#8a8f98;font-size:12px;margin-bottom:6px;}' +
+  '</style>'
+
+/** DOCX (word/document.xml) → simple HTML. Tolerant: bad runs degrade to text. */
+async function docxToHtml(nodeFs, target) {
+  const JSZip = (await import('jszip')).default
+  const { DOMParser } = await import('@xmldom/xmldom')
+  const buffer = await nodeFs.promises.readFile(target)
+  const zip = await JSZip.loadAsync(buffer)
+  const docXml = await zip.file('word/document.xml')?.async('string')
+  if (!docXml) throw new Error('docx: word/document.xml missing')
+  const doc = new DOMParser().parseFromString(docXml, 'text/xml')
+  const body = doc.getElementsByTagName('w:body')[0]
+  if (!body) throw new Error('docx: body missing')
+
+  const runHtml = (runEl) => {
+    try {
+      const rPr = runEl.getElementsByTagName('w:rPr')[0]
+      let inner = ''
+      for (const child of Array.from(runEl.childNodes)) {
+        if (child.nodeName === 'w:t') inner += escapeHtmlText(child.textContent ?? '')
+        else if (child.nodeName === 'w:br') inner += '<br/>'
+        else if (child.nodeName === 'w:tab') inner += '&nbsp;&nbsp;'
+      }
+      if (!inner) return ''
+      const bold = rPr?.getElementsByTagName('w:b').length > 0
+      const italic = rPr?.getElementsByTagName('w:i').length > 0
+      const underline = rPr?.getElementsByTagName('w:u').length > 0
+      if (!bold && !italic && !underline) return inner
+      return `<span style="${bold ? 'font-weight:600;' : ''}${italic ? 'font-style:italic;' : ''}${underline ? 'text-decoration:underline;' : ''}">${inner}</span>`
+    } catch { return '' }
+  }
+
+  const paraHtml = (pEl) => {
+    const pPr = pEl.getElementsByTagName('w:pPr')[0]
+    const styleVal = pPr?.getElementsByTagName('w:pStyle')[0]?.getAttribute('w:val') ?? ''
+    const heading = /^Heading(\d)$/i.exec(styleVal)
+    let inner = ''
+    for (const child of Array.from(pEl.childNodes)) {
+      if (child.nodeName === 'w:r') inner += runHtml(child)
+      else if (child.nodeName === 'w:hyperlink') {
+        for (const run of Array.from(child.childNodes)) if (run.nodeName === 'w:r') inner += runHtml(run)
+      }
+    }
+    if (!inner) return ''
+    if (heading) return `<h${Math.min(6, Number(heading[1]))}>${inner}</h${Math.min(6, Number(heading[1]))}>`
+    const inList = pPr?.getElementsByTagName('w:numPr').length > 0
+    return inList ? `<li>${inner}</li>` : `<p>${inner}</p>`
+  }
+
+  const tableHtml = (tblEl) => {
+    let html = '<table>'
+    for (const tr of Array.from(tblEl.getElementsByTagName('w:tr'))) {
+      html += '<tr>'
+      for (const tc of Array.from(tr.getElementsByTagName('w:tc'))) {
+        let cellInner = ''
+        for (const p of Array.from(tc.getElementsByTagName('w:p'))) cellInner += paraHtml(p)
+        html += `<td>${cellInner || ''}</td>`
+      }
+      html += '</tr>'
+    }
+    return html + '</table>'
+  }
+
+  let html = ''
+  // Wrap consecutive <li> into <ul>
+  let listOpen = false
+  for (const node of Array.from(body.childNodes)) {
+    if (node.nodeName === 'w:p') {
+      const isLi = node.getElementsByTagName('w:pPr')[0]?.getElementsByTagName('w:numPr').length > 0
+      const piece = paraHtml(node)
+      if (!piece) continue
+      if (isLi && !listOpen) { html += '<ul>'; listOpen = true }
+      if (!isLi && listOpen) { html += '</ul>'; listOpen = false }
+      html += piece
+    } else if (node.nodeName === 'w:tbl') {
+      if (listOpen) { html += '</ul>'; listOpen = false }
+      html += tableHtml(node)
+    }
+  }
+  if (listOpen) html += '</ul>'
+  return `<!doctype html><html><head><meta charset="utf-8">${OFFICE_PAGE_CSS}</head><body>${html || '<p style="color:#8a8f98">(empty document)</p>'}</body></html>`
+}
+
+/** PPTX → slide cards HTML (text content per slide, in slide order). */
+async function pptxToHtml(nodeFs, target) {
+  const JSZip = (await import('jszip')).default
+  const { DOMParser } = await import('@xmldom/xmldom')
+  const buffer = await nodeFs.promises.readFile(target)
+  const zip = await JSZip.loadAsync(buffer)
+  const slideFiles = Object.keys(zip.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort((a, b) => Number(/slide(\d+)\.xml/.exec(a)?.[1] ?? 0) - Number(/slide(\d+)\.xml/.exec(b)?.[1] ?? 0))
+  if (slideFiles.length === 0) throw new Error('pptx: no slides found')
+  let html = ''
+  for (let i = 0; i < slideFiles.length; i++) {
+    const xml = await zip.file(slideFiles[i]).async('string')
+    const doc = new DOMParser().parseFromString(xml, 'text/xml')
+    const texts = Array.from(doc.getElementsByTagName('a:t'))
+      .map((t) => (t.textContent ?? '').trim())
+      .filter((t) => t.length > 0)
+    html += `<div class="kb-slide"><div class="kb-slide-no">Slide ${i + 1} / ${slideFiles.length}</div>`
+    html += texts.length > 0
+      ? texts.map((t) => `<p>${escapeHtmlText(t)}</p>`).join('')
+      : '<p style="color:#8a8f98">(no text on this slide)</p>'
+    html += '</div>'
+  }
+  return `<!doctype html><html><head><meta charset="utf-8">${OFFICE_PAGE_CSS}</head><body>${html}</body></html>`
+}
+
+
 // ---------- BM25 ranking (indexless corpus scan with a short-lived cache) ----------
 
 async function* walkLocal(source, dirPath = '') {
@@ -594,17 +717,15 @@ async function routeRequest(ctx, request) {
 
     if (officeMime || isCsv) {
       let html = ''
-      if (ext === '.docx' && mammoth) {
-        const buffer = await nodeFs.promises.readFile(target)
-        const result = await mammoth.convertToHtml({ buffer })
-        html = result.value
+      if (ext === '.docx') {
+        html = await docxToHtml(nodeFs, target)
       } else if ((ext === '.xlsx' || ext === '.xls') && XLSX) {
         const buffer = await nodeFs.promises.readFile(target)
         const workbook = XLSX.read(buffer, { type: 'buffer' })
         html = '<div style="font-family: monospace; white-space: pre;">'
         workbook.SheetNames.forEach((sheetName, i) => {
           const sheet = workbook.Sheets[sheetName]
-          html += `<h3>${sheetName}</h3>`
+          html += `<h3>${escapeHtmlText(sheetName)}</h3>`
           html += XLSX.utils.sheet_to_html(sheet)
         })
         html += '</div>'
@@ -618,7 +739,7 @@ async function routeRequest(ctx, request) {
         html += '<thead style="background: var(--dsw-alias-bg-layer2);">'
         html += '<tr>'
         rows[0]?.forEach((cell, i) => {
-          html += `<th style="border: 1px solid var(--dsw-alias-border-l1); padding: 8px; text-align: left; font-weight: 600;">${cell}</th>`
+          html += `<th style="border: 1px solid var(--dsw-alias-border-l1); padding: 8px; text-align: left; font-weight: 600;">${escapeHtmlText(cell)}</th>`
         })
         html += '</tr>'
         html += '</thead>'
@@ -627,36 +748,42 @@ async function routeRequest(ctx, request) {
           const bg = ri % 2 === 0 ? 'transparent' : 'var(--dsw-alias-bg-layer1)'
           html += `<tr style="background: ${bg};">`
           row.forEach((cell, ci) => {
-            html += `<td style="border: 1px solid var(--dsw-alias-border-l1); padding: 8px;">${cell}</td>`
+            html += `<td style="border: 1px solid var(--dsw-alias-border-l1); padding: 8px;">${escapeHtmlText(cell)}</td>`
           })
           html += '</tr>'
         })
         html += '</tbody>'
         html += '</table>'
         html += '</div>'
-      } else if ((ext === '.pptx' || ext === '.ppt')) {
-        // PPTX conversion would need additional library (pptx2html)
-        // For now return a basic message
-        html = `<div style="padding: 20px; text-align: center; color: #666;">
-          <div style="font-size: 48px;">📊</div>
-          <h3>PowerPoint 预览</h3>
-          <p>PPT/PPTX 预览需要额外库支持</p>
-          <p>文件: ${nodePath.basename(target)}</p>
-        </div>`
+      } else if (ext === '.pptx') {
+        html = await pptxToHtml(nodeFs, target)
       } else {
-        // .doc fallback
+        // Legacy binary formats (.doc/.ppt): no in-process converter — graceful fallback.
+        const kind = ext === '.ppt' ? 'PowerPoint' : 'Word'
         html = `<div style="padding: 20px; text-align: center; color: #666;">
-          <div style="font-size: 48px;">📄</div>
-          <h3>Word 文档</h3>
-          <p>.doc 格式预览需要转换，建议另存为 .docx</p>
-          <p>文件: ${nodePath.basename(target)}</p>
+          <div style="font-size: 48px;">${ext === '.ppt' ? '📊' : '📄'}</div>
+          <h3>${kind} 文档</h3>
+          <p>${ext === '.ppt' ? '.ppt' : '.doc'} 为旧版二进制格式，暂不支持内嵌预览，建议另存为 .${ext === '.ppt' ? 'pptx' : 'docx'}</p>
+          <p>文件: ${escapeHtmlText(nodePath.basename(target))}</p>
         </div>`
       }
       return okPayload({ data: Buffer.from(html, 'utf8').toString('base64'), mime: 'text/html', size: stat.size, converted: true })
     }
 
     const data = await nodeFs.promises.readFile(target)
-    const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.pdf': 'application/pdf' }[ext]
+    const mime = {
+      // images
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+      '.webp': 'image/webp', '.avif': 'image/avif', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+      // documents
+      '.pdf': 'application/pdf',
+      // audio
+      '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.flac': 'audio/flac', '.aac': 'audio/aac',
+      '.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.m4a': 'audio/mp4', '.3gp': 'audio/3gpp',
+      // video
+      '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime',
+      '.mkv': 'video/x-matroska', '.ogv': 'video/ogg',
+    }[ext]
     if (mime === undefined) return fail(415, 'unsupported', 'this file type has no inline preview')
     return okPayload({ data: data.toString('base64'), mime, size: stat.size })
   }
