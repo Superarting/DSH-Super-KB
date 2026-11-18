@@ -17,9 +17,17 @@ const SEARCH_BUDGET_MS = 4000
 const SEARCH_MAX_HITS = 80
 const SEARCH_SNIPPET_CHARS = 160
 const UPLOAD_MAX_BYTES = 8 * 1024 * 1024
+/** Inline preview ceiling (images/PDF/bytes route), softer than the upload cap. */
+const PREVIEW_MAX_BYTES = 10 * 1024 * 1024
 const ARCHIVE_DIR = 'sessions'
 /** Cap on one archived session card's captured characters. */
 const ARCHIVE_MAX_CHARS = 60000
+
+// Office conversion support
+let mammoth = null
+let XLSX = null
+try { mammoth = (await import('mammoth')).default } catch {}
+try { XLSX = (await import('xlsx')).default } catch {}
 const TEXT_EXTENSIONS = new Set([
   'md', 'markdown', 'txt', 'text', 'csv', 'tsv', 'json', 'json5', 'jsonc', 'yaml', 'yml',
   'xml', 'html', 'htm', 'css', 'scss', 'less', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'vue',
@@ -72,7 +80,7 @@ const GUIDANCE_TEXT = [
 
 // ---------- small utilities ----------
 
-const bytes = (n) => `${n} B`
+const bytes = (n) => (n >= 1024 * 1024 ? `${(n / (1024 * 1024)).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`)
 function isTextName(base) {
   const lower = base.toLowerCase()
   if (TEXT_EXTENSIONS.has(lower.split('.').pop() ?? '')) return true
@@ -569,9 +577,85 @@ async function routeRequest(ctx, request) {
     if (!target.startsWith(root + nodePath.sep)) return fail(400, 'bad-path', 'path escapes the source root')
     const stat = await nodeFs.promises.stat(target).catch(() => undefined)
     if (stat === undefined || !stat.isFile()) return fail(404, 'not-found', 'file not found')
-    if (stat.size > UPLOAD_MAX_BYTES) return respond({ ok: false, code: 'too-large', message: `file exceeds ${bytes(UPLOAD_MAX_BYTES)}`, size: stat.size }, 413)
-    const data = await nodeFs.promises.readFile(target)
+    if (stat.size > PREVIEW_MAX_BYTES) return respond({ ok: false, code: 'too-large', message: `file exceeds ${bytes(PREVIEW_MAX_BYTES)}`, size: stat.size }, 413)
+
     const ext = nodePath.extname(target).toLowerCase()
+
+    // Office file conversion to HTML for preview
+    const officeMime = { '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.doc': 'application/msword',
+      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xls': 'application/vnd.ms-excel',
+      '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      '.ppt': 'application/vnd.ms-powerpoint' }[ext]
+
+    // CSV/TSV support
+    const isCsv = ['.csv', '.tsv'].includes(ext)
+
+    if (officeMime || isCsv) {
+      let html = ''
+      if (ext === '.docx' && mammoth) {
+        const buffer = await nodeFs.promises.readFile(target)
+        const result = await mammoth.convertToHtml({ buffer })
+        html = result.value
+      } else if ((ext === '.xlsx' || ext === '.xls') && XLSX) {
+        const buffer = await nodeFs.promises.readFile(target)
+        const workbook = XLSX.read(buffer, { type: 'buffer' })
+        html = '<div style="font-family: monospace; white-space: pre;">'
+        workbook.SheetNames.forEach((sheetName, i) => {
+          const sheet = workbook.Sheets[sheetName]
+          html += `<h3>${sheetName}</h3>`
+          html += XLSX.utils.sheet_to_html(sheet)
+        })
+        html += '</div>'
+      } else if (isCsv) {
+        const delimiter = ext === '.tsv' ? '\t' : ','
+        const content = await nodeFs.promises.readFile(target, 'utf8')
+        const lines = content.split('\n').filter(l => l.trim().length > 0)
+        const rows = lines.map(line => line.split(delimiter).map(cell => cell.trim()))
+        html = '<div style="font-family: system-ui; line-height: 1.6;">'
+        html += '<table style="border-collapse: collapse; width: 100%; margin: 10px 0;">'
+        html += '<thead style="background: var(--dsw-alias-bg-layer2);">'
+        html += '<tr>'
+        rows[0]?.forEach((cell, i) => {
+          html += `<th style="border: 1px solid var(--dsw-alias-border-l1); padding: 8px; text-align: left; font-weight: 600;">${cell}</th>`
+        })
+        html += '</tr>'
+        html += '</thead>'
+        html += '<tbody>'
+        rows.slice(1).forEach((row, ri) => {
+          const bg = ri % 2 === 0 ? 'transparent' : 'var(--dsw-alias-bg-layer1)'
+          html += `<tr style="background: ${bg};">`
+          row.forEach((cell, ci) => {
+            html += `<td style="border: 1px solid var(--dsw-alias-border-l1); padding: 8px;">${cell}</td>`
+          })
+          html += '</tr>'
+        })
+        html += '</tbody>'
+        html += '</table>'
+        html += '</div>'
+      } else if ((ext === '.pptx' || ext === '.ppt')) {
+        // PPTX conversion would need additional library (pptx2html)
+        // For now return a basic message
+        html = `<div style="padding: 20px; text-align: center; color: #666;">
+          <div style="font-size: 48px;">📊</div>
+          <h3>PowerPoint 预览</h3>
+          <p>PPT/PPTX 预览需要额外库支持</p>
+          <p>文件: ${nodePath.basename(target)}</p>
+        </div>`
+      } else {
+        // .doc fallback
+        html = `<div style="padding: 20px; text-align: center; color: #666;">
+          <div style="font-size: 48px;">📄</div>
+          <h3>Word 文档</h3>
+          <p>.doc 格式预览需要转换，建议另存为 .docx</p>
+          <p>文件: ${nodePath.basename(target)}</p>
+        </div>`
+      }
+      return okPayload({ data: Buffer.from(html, 'utf8').toString('base64'), mime: 'text/html', size: stat.size, converted: true })
+    }
+
+    const data = await nodeFs.promises.readFile(target)
     const mime = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.avif': 'image/avif', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.pdf': 'application/pdf' }[ext]
     if (mime === undefined) return fail(415, 'unsupported', 'this file type has no inline preview')
     return okPayload({ data: data.toString('base64'), mime, size: stat.size })
@@ -588,7 +672,7 @@ async function routeRequest(ctx, request) {
     if (!target.startsWith(root + nodePath.sep)) return fail(400, 'bad-path', 'path escapes the source root')
     const stat = await nodeFs.promises.stat(target).catch(() => undefined)
     if (stat === undefined || !stat.isFile()) return fail(404, 'not-found', 'file not found')
-    if (stat.size > UPLOAD_MAX_BYTES) return respond({ ok: false, code: 'too-large', message: `file exceeds ${bytes(UPLOAD_MAX_BYTES)}`, size: stat.size }, 413)
+    if (stat.size > PREVIEW_MAX_BYTES) return respond({ ok: false, code: 'too-large', message: `file exceeds ${bytes(PREVIEW_MAX_BYTES)}`, size: stat.size }, 413)
     const data = await nodeFs.promises.readFile(target)
     return okPayload({ data: data.toString('base64'), name: nodePath.basename(target), size: stat.size })
   }

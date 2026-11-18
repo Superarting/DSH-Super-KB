@@ -40,7 +40,7 @@ window.__ModuleLoader__.load({
         searching: 'Searching…', noHits: 'No matches.',
         searchTruncated: 'Results truncated (time budget reached).', scanned: '{n} files scanned',
         emptyFolder: 'This folder is empty.', loading: 'Loading…', loadFailed: 'Load failed',
-        notTextFile: 'Only text files can be previewed.', fileTooLarge: 'File too large to preview (over 2 MiB).',
+        notTextFile: 'Only text files can be previewed.', fileTooLarge: 'Over 10 MB; preview unavailable.',
         back: 'Back', savedToast: 'Saved', saveFailed: 'Save failed',
         uploadToKb: 'Upload to knowledge base', uploadedTo: 'Uploaded to {name} as {path}',
         uploadFailed: 'Upload failed', uploadReadFailed: 'Original file unavailable',
@@ -103,7 +103,7 @@ window.__ModuleLoader__.load({
         searching: '搜索中…', noHits: '没有匹配结果。',
         searchTruncated: '结果已截断(达到时间预算)。', scanned: '已扫描 {n} 个文件',
         emptyFolder: '此文件夹为空。', loading: '加载中…', loadFailed: '加载失败',
-        notTextFile: '仅文本文件可以预览。', fileTooLarge: '文件过大,无法预览(超过 2 MiB)。',
+        notTextFile: '仅文本文件可以预览。', fileTooLarge: '超过 10 MB，无法预览。',
         back: '返回', savedToast: '已保存', saveFailed: '保存失败',
         uploadToKb: '上传到知识库', uploadedTo: '已上传到 {name},文件名 {path}',
         uploadFailed: '上传失败', uploadReadFailed: '原文件不可用',
@@ -189,7 +189,7 @@ window.__ModuleLoader__.load({
 /* Tree rows: fixed 32px height so hover never shifts layout; the more button
    reserves its slot invisibly to keep every row the same width behavior. */
 .kb-tree-row{display:flex;align-items:center;height:32px;padding:0 6px;border-radius:var(--dsw-radius-sm);cursor:pointer;user-select:none;white-space:nowrap}
-.kb-tree-caret{flex:none;width:14px;text-align:center;font-size:9px;color:var(--dsw-alias-label-caption);margin-right:2px}
+.kb-tree-caret{flex:none;width:20px;text-align:center;font-size:14px;line-height:1;color:var(--dsw-alias-label-secondary);margin-right:2px}
 @media (hover: hover){ .kb-tree-row:hover{background:var(--dsw-alias-interactive-bg-hover)} }
 .kb-tree-row-active{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover))}
 .kb-tree-row:focus-visible{outline:1px solid var(--dsw-alias-brand-primary);outline-offset:-1px}
@@ -331,7 +331,9 @@ window.__ModuleLoader__.load({
       docJson: () => filled(['M3 1.5h6.2L13.5 5.8V14a.7.7 0 0 1-.7.7H3a.7.7 0 0 1-.7-.7V2.2a.7.7 0 0 1 .7-.7Z'], '#e0a03a'),
       docHtml: () => filled(['M3 1.5h6.2L13.5 5.8V14a.7.7 0 0 1-.7.7H3a.7.7 0 0 1-.7-.7V2.2a.7.7 0 0 1 .7-.7Z'], '#d8564f'),
       docImg: () => filled(['M3 1.5h6.2L13.5 5.8V14a.7.7 0 0 1-.7.7H3a.7.7 0 0 1-.7-.7V2.2a.7.7 0 0 1 .7-.7Z'], '#3aa6a0'),
-      chevron: (open) => h('span', { className: 'kb-tree-caret' }, open ? '▾' : '▸'),
+      chevron: (open) => h('span', { className: 'kb-tree-caret' },
+        h('svg', { width: 14, height: 14, viewBox: '0 0 16 16', 'aria-hidden': true, style: { flex: 'none' } },
+          h('path', { d: open ? 'M4 6.5 8 10.5 12 6.5' : 'M6.5 4 10.5 8 6.5 12', fill: 'none', stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }))),
       book: (size = 16) => h('svg', { width: size, height: size, viewBox: '0 0 16 16', fill: 'currentColor', 'aria-hidden': true },
         h('path', { d: 'M2 2.5A1.5 1.5 0 0 1 3.5 1h8A1.5 1.5 0 0 1 13 2.5v11a.5.5 0 0 1-.5.5H3.5A1.5 1.5 0 0 1 2 12.5v-10Zm1.5-.5a.5.5 0 0 0-.5.5v9.6c.2-.06.4-.1.6-.1H12V2.5a.5.5 0 0 0-.5-.5h-8ZM3.6 13a.6.6 0 0 0 0 1.2h8.4v-1H3.6Z' })),
       gear: (size = 14) => line(['M8 5.6A2.4 2.4 0 1 0 8 10.4 2.4 2.4 0 0 0 8 5.6Z', 'M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4'], size),
@@ -635,7 +637,7 @@ window.__ModuleLoader__.load({
       // itself never jumps or re-layouts on selection.
       const activate = () => {
         toggle()
-        if (kind === 'file' && props.text !== false) onOpen({ sourceId, path, name, kind })
+        if (kind === 'file') onOpen({ sourceId, path, name, kind })
       }
       const onKey = (event) => {
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate() }
@@ -731,6 +733,8 @@ window.__ModuleLoader__.load({
       if (ext === 'svg') return 'svg'
       if (ext === 'pdf') return 'pdf'
       if (ext === 'html' || ext === 'htm') return 'html'
+      if (['docx', 'xlsx', 'xls', 'pptx', 'ppt'].includes(ext)) return 'office'
+      if (['csv', 'tsv'].includes(ext)) return 'csv'
       if (['css', 'scss', 'less', 'js', 'mjs', 'cjs', 'jsx', 'ts', 'tsx', 'vue', 'json', 'json5', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sh', 'bash', 'sql', 'yaml', 'yml', 'toml', 'xml', 'ini'].includes(ext)) return 'code'
       if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a'].includes(ext)) return 'audio'
       if (['mp4', 'mov', 'mkv', 'webm', 'm4v'].includes(ext)) return 'video'
@@ -741,13 +745,13 @@ window.__ModuleLoader__.load({
       const { sourceId, path } = props
       const kind = PREVIEW_KIND(path)
       const state = useAsync(() => {
-        if (kind === 'image' || kind === 'pdf') return api('raw', { source: sourceId, path })
+        if (kind === 'image' || kind === 'pdf' || kind === 'svg' || kind === 'office' || kind === 'csv') return api('raw', { source: sourceId, path })
         return api('read', { source: sourceId, path })
       }, [sourceId, path, kind])
-      const [view, setView] = React.useState(kind === 'html' || kind === 'svg' ? 'preview' : 'code')
+      const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' ? 'preview' : 'code')
       const isMd = /\.(md|markdown)$/i.test(path)
       const name = path.split('/').pop()
-      const toggle = (kind === 'html' || kind === 'svg' || kind === 'code') && h('div', { className: 'kb-view-toggle', role: 'tablist' },
+      const toggle = (kind === 'html' || kind === 'svg' || kind === 'code' || kind === 'office' || kind === 'csv') && h('div', { className: 'kb-view-toggle', role: 'tablist' },
         h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'preview' ? '' : undefined, onClick: () => setView('preview') }, t('preview')),
         h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'code' ? '' : undefined, onClick: () => setView('code') }, t('code')))
       let body = null
@@ -755,17 +759,24 @@ window.__ModuleLoader__.load({
       else if (state.error !== undefined) {
         body = h('div', { className: 'kb-empty' },
           h('div', { className: 'kb-empty-icon' }, fileTypeIcon(name, 40)),
-          h('div', { className: 'kb-status-error' }, state.error.includes('too large') ? t('fileTooLarge') : `${t('loadFailed')}: ${state.error}`),
+          h('div', { className: 'kb-status-error' }, state.error.includes('too large') || state.error.includes('exceeds') ? t('fileTooLarge') : `${t('loadFailed')}: ${state.error}`),
           h('div', { className: 'kb-empty-desc' }, t('previewUnsupported')),
           h('button', { className: 'kb-btn kb-btn-sm', onClick: state.reload }, t('retry')))
       } else if (state.value !== undefined) {
         if (kind === 'image') {
           body = h('div', { className: 'kb-content', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, whiteSpace: 'normal' } },
             h('img', { src: `data:${state.value.mime};base64,${state.value.data}`, alt: name, style: { maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' } }))
-        } else if (kind === 'svg' && view === 'preview') {
-          const svg64 = btoa(unescape(encodeURIComponent(state.value.content)))
-          body = h('div', { className: 'kb-content', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, whiteSpace: 'normal' } },
-            h('img', { src: `data:image/svg+xml;base64,${svg64}`, alt: name, style: { maxWidth: '100%', maxHeight: '100%', display: 'block' } }))
+        } else if (kind === 'svg') {
+          if (view === 'preview') {
+            body = h('div', { className: 'kb-content', style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, whiteSpace: 'normal' } },
+              h('img', { src: `data:${state.value.mime};base64,${state.value.data}`, alt: name, style: { maxWidth: '100%', maxHeight: '100%', display: 'block' } }))
+          } else {
+            // Code view: decode the raw endpoint's base64 payload back to text.
+            let svgText = ''
+            try { svgText = decodeURIComponent(escape(atob(state.value.data))) }
+            catch { try { svgText = atob(state.value.data) } catch { svgText = '' } }
+            body = h('div', { className: 'kb-content' }, svgText)
+          }
         } else if (kind === 'pdf') {
           body = h('div', { className: 'kb-content', style: { padding: 0 } },
             h('iframe', { src: `data:application/pdf;base64,${state.value.data}`, title: name, style: { width: '100%', height: '100%', border: 0 } }))
@@ -778,6 +789,33 @@ window.__ModuleLoader__.load({
               sandbox: 'allow-same-origin',
               style: { width: '100%', height: '100%', border: 0, background: '#fff' },
             }))
+        } else if (kind === 'office') {
+          // Office files converted to HTML on the server
+          const base64 = state.value.data
+          body = h('div', { className: 'kb-content', style: { padding: 0 } },
+            h('iframe', {
+              src: `data:text/html;base64,${base64}`, title: name,
+              sandbox: 'allow-same-origin',
+              style: { width: '100%', height: '100%', border: 0, background: '#fff' },
+            }))
+        } else if (kind === 'csv') {
+          // CSV/TSV files: parse and render as table
+          const content = state.value.content ?? ''
+          const lines = content.split('\n').filter(l => l.trim().length > 0)
+          const delimiter = name.toLowerCase().endsWith('.tsv') ? '\t' : ','
+          const rows = lines.map(line => line.split(delimiter).map(cell => cell.trim()))
+          body = h('div', { className: 'kb-content', style: { padding: 16, overflow: 'auto' } },
+            h('table', { style: { borderCollapse: 'collapse', width: '100%', fontSize: '13px' } },
+              h('thead', { style: { background: 'var(--dsw-alias-bg-layer2)' } },
+                h('tr', null,
+                  rows[0]?.map((cell, i) => h('th', { key: i, style: { border: '1px solid var(--dsw-alias-border-l1)', padding: '8px', textAlign: 'left', fontWeight: 600 } }, cell))
+                )),
+              h('tbody', null,
+                rows.slice(1).map((row, ri) => h('tr', { key: ri, style: { background: ri % 2 === 0 ? 'transparent' : 'var(--dsw-alias-bg-layer1)' } },
+                  row.map((cell, ci) => h('td', { key: ci, style: { border: '1px solid var(--dsw-alias-border-l1)', padding: '8px' } }, cell))
+                ))
+              )
+            ))
         } else {
           const content = state.value.content ?? ''
           const renderAsMd = isMd && !(kind === 'html' || kind === 'svg' || kind === 'code')
@@ -1546,6 +1584,9 @@ window.__ModuleLoader__.load({
           ? h(SearchView, { source: selected, query: searchQuery, runTick: searchTick, onOpenHit: (path) => { setActiveFile({ sourceId: selected.id, path, name: path.split('/').pop(), kind: 'file' }); setMode('browse') } })
           : activeFile !== undefined && activeFile.kind === 'file'
             ? h(Preview, {
+              // Key by path: switching files remounts Preview so the 预览/代码
+              // view state resets to the new file type's default.
+              key: `${activeFile.sourceId ?? selected.id}/${activeFile.path}`,
               sourceId: activeFile.sourceId ?? selected.id, path: activeFile.path,
               onBack: () => setActiveFile(undefined),
               onWiki: (targetName) => {
