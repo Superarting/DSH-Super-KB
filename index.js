@@ -330,6 +330,72 @@ async function readFile(ctx, source, filePath) {
   }
 }
 
+// ---------- HTML page rewriting for web-like preview (scheme A) ----------
+// Relative refs inside the previewed HTML are rewritten to /api/kb?op=raw
+// absolute URLs so images, stylesheets and inline CSS url(...) resolve
+// against the knowledge-base folder instead of the app root. JS is NOT
+// rewritten (scheme B enables script execution via the sandbox flag; script
+// srcs are handled client-side through the same raw endpoint).
+
+/** Rewrite relative resource refs in one HTML document to raw-endpoint URLs. */
+function rewriteHtmlResources(html, rawBase, docDir) {
+  // rawBase = `/api/kb?op=raw&source=<id>&path=` (path appended, URI-encoded)
+  const enc = (p) => encodeURIComponent(p)
+  const abs = (ref, dir) => {
+    // Resolve ref against dir (POSIX-style, since source paths are '/'-joined).
+    if (/^(https?:|data:|blob:|#|mailto:|javascript:)/i.test(ref)) return null // leave as-is
+    const clean = ref.split('#')[0].split('?')[0]
+    if (clean.length === 0) return null
+    let joined
+    if (clean.startsWith('/')) joined = clean.replace(/^\/+/, '')
+    else {
+      const parts = (dir + '/' + clean).split('/')
+      const stack = []
+      for (const part of parts) {
+        if (part === '' || part === '.') continue
+        if (part === '..') stack.pop()
+        else stack.push(part)
+      }
+      joined = stack.join('/')
+    }
+    return rawBase + enc(joined)
+  }
+  const dirOf = (docPath) => (docPath.includes('/') ? docPath.slice(0, docPath.lastIndexOf('/') + 1) : '')
+
+  let out = html
+  // src/poster refs — double-quoted and single-quoted forms handled by
+  // separate deterministic patterns (a shared backreference pattern let the
+  // closing quote leak into the captured ref).
+  const srcCb = (m, attr, ref, close) => {
+    const fixed = abs(ref, dirOf(docDir))
+    return fixed ? `${attr}${fixed}${close}` : m
+  }
+  out = out.replace(/(\s(?:src|poster)\s*=\s*")([^"]*)(")/gi, srcCb)
+  out = out.replace(/(\s(?:src|poster)\s*=\s*')([^']*)(')/gi, srcCb)
+  // <link rel="stylesheet" href> / any <link href>
+  out = out.replace(/(<link\b[^>]*\bhref\s*=\s*")([^"]+)(")/gi, srcCb)
+  out = out.replace(/(<link\b[^>]*\bhref\s*=\s*')([^']+)(')/gi, srcCb)
+  // inline <style> blocks: url(...) refs (quotes optional)
+  out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style>)/gi, (m, open, css, close) => {
+    const rewritten = css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (mm, q, ref) => {
+      const fixed = abs(ref, dirOf(docDir))
+      return fixed ? `url(${q}${fixed}${q})` : mm
+    })
+    return open + rewritten + close
+  })
+  // style="...url(...)..." attributes
+  out = out.replace(/(\sstyle\s*=\s*)(["'])([^"']*url\([^"']*\)[^"']*)\2/gi, (m, attr, q, css) => {
+    const rewritten = css.replace(/url\(\s*(['"]?)([^'")]+)\1\s*\)/gi, (mm, q2, ref) => {
+      const fixed = abs(ref, dirOf(docDir))
+      return fixed ? `url(${q2}${fixed}${q2})` : mm
+    })
+    return attr + q + rewritten + q
+  })
+  // <base href>: strip it — raw URLs are absolute already
+  out = out.replace(/<base\b[^>]*>/gi, '')
+  return out
+}
+
 // ---------- built-in Office converters (self-contained: jszip + xmldom) ----------
 
 const escapeHtmlText = (s) => String(s)
@@ -842,6 +908,69 @@ async function routeRequest(ctx, request) {
     }[ext]
     if (mime === undefined) return fail(415, 'unsupported', 'this file type has no inline preview')
     return okPayload({ data: data.toString('base64'), mime, size: stat.size })
+  }
+
+  if (op === 'page') {
+    // Scheme A: serve an HTML file with relative resource refs rewritten to
+    // raw-endpoint URLs, so images/stylesheets resolve against the KB folder
+    // (web-like preview without executing anything).
+    if (source.type !== 'local') return fail(409, 'webdav-readonly', 'page preview needs a local source')
+    const nodePath = (await import('node:path')).default
+    const nodeFs = (await import('node:fs')).default
+    const root = nodePath.resolve(source.path)
+    const target = nodePath.resolve(root, url.searchParams.get('path') ?? '.')
+    if (!target.startsWith(root + nodePath.sep)) return fail(400, 'bad-path', 'path escapes the source root')
+    const stat = await nodeFs.promises.stat(target).catch(() => undefined)
+    if (stat === undefined || !stat.isFile()) return fail(404, 'not-found', 'file not found')
+    if (stat.size > PREVIEW_MAX_BYTES) return respond({ ok: false, code: 'too-large', message: `file exceeds ${bytes(PREVIEW_MAX_BYTES)}`, size: stat.size }, 413)
+    const ext = nodePath.extname(target).toLowerCase()
+    if (!['.html', '.htm'].includes(ext)) return fail(415, 'unsupported', 'page preview is for .html/.htm')
+    const sourceId = url.searchParams.get('source') ?? ''
+    const docDir = nodePath.relative(root, nodePath.dirname(target)).split(nodePath.sep).join('/')
+    const assetBase = `/api/kb?op=pageAsset&source=${encodeURIComponent(sourceId)}&dir=${encodeURIComponent(docDir)}&path=`
+    const html = await nodeFs.promises.readFile(target, 'utf8')
+    const rewritten = rewriteHtmlResources(html, assetBase, docDir)
+    return okPayload({ data: Buffer.from(rewritten, 'utf8').toString('base64'), mime: 'text/html', size: stat.size, rewritten: true })
+  }
+
+  if (op === 'pageAsset') {
+    // Scheme B companion: serve ANY KB file (text or binary, ≤ cap) with a
+    // content-type, so scripts/stylesheets loaded by the enabled-sandbox page
+    // resolve. Path may be relative to the page's directory.
+    if (source.type !== 'local') return fail(409, 'webdav-readonly', 'assets need a local source')
+    const nodePath = (await import('node:path')).default
+    const nodeFs = (await import('node:fs')).default
+    const root = nodePath.resolve(source.path)
+    let rel = url.searchParams.get('path') ?? ''
+    const pageDir = url.searchParams.get('dir') ?? ''
+    if (rel.length === 0) return fail(400, 'bad-path', 'asset path required')
+    const parts = (pageDir + '/' + rel).split('/')
+    const stack = []
+    for (const part of parts) {
+      if (part === '' || part === '.') continue
+      if (part === '..') stack.pop()
+      else stack.push(part)
+    }
+    rel = stack.join('/')
+    const target = nodePath.resolve(root, rel)
+    if (!target.startsWith(root + nodePath.sep)) return fail(400, 'bad-path', 'path escapes the source root')
+    const stat = await nodeFs.promises.stat(target).catch(() => undefined)
+    if (stat === undefined || !stat.isFile()) return fail(404, 'not-found', 'asset not found')
+    if (stat.size > PREVIEW_MAX_BYTES) return respond({ ok: false, code: 'too-large', message: `file exceeds ${bytes(PREVIEW_MAX_BYTES)}`, size: stat.size }, 413)
+    const ext = nodePath.extname(target).toLowerCase()
+    const mime = {
+      '.html': 'text/html', '.htm': 'text/html', '.css': 'text/css',
+      '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json',
+      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif',
+      '.webp': 'image/webp', '.avif': 'image/avif', '.bmp': 'image/bmp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon',
+      '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg',
+      '.mp4': 'video/mp4', '.webm': 'video/webm', '.woff': 'font/woff', '.woff2': 'font/woff2', '.ttf': 'font/ttf',
+      '.txt': 'text/plain', '.xml': 'application/xml', '.pdf': 'application/pdf',
+    }[ext] ?? 'application/octet-stream'
+    const data = await nodeFs.promises.readFile(target)
+    // Native response: the sandboxed page loads scripts/stylesheets/images
+    // directly from this URL (a JSON+base64 wrapper would not execute).
+    return new Response(data, { status: 200, headers: { 'content-type': mime, 'cache-control': 'no-store' } })
   }
 
   if (op === 'bytes') {

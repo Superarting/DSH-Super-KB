@@ -78,6 +78,7 @@ window.__ModuleLoader__.load({
         attached: 'Attached {name} to the session', attachFailed: 'Attach failed',
         rootFolder: 'Source root', moveHere: 'Move here', preview: 'Preview', code: 'Code', textView: 'Text',
         resizeSidebar: 'Resize sidebar', resizeSidebarHint: 'Drag to resize · double-click to reset',
+        scriptsTitle: 'Toggle scripts in this preview',
         readKbFile: 'Please read the knowledge-base file',
         attachAsPath: 'Attach as path', attachAsFile: 'Attach as file',
         attachAsPathHint: 'Agent reads the original file in place',
@@ -161,6 +162,7 @@ window.__ModuleLoader__.load({
         attached: '已将 {name} 附加到会话', attachFailed: '附加失败',
         rootFolder: '来源根目录', moveHere: '移动到此处', preview: '预览', code: '代码', textView: '文本',
         resizeSidebar: '调整侧栏宽度', resizeSidebarHint: '拖动调整宽度 · 双击恢复默认',
+        scriptsTitle: '在此预览中启用/停用脚本',
         readKbFile: '请阅读知识库文件',
         attachAsPath: '以路径引用附加', attachAsFile: '以附件形式附加',
         attachAsPathHint: 'Agent 原地读取知识库原文件',
@@ -871,9 +873,13 @@ window.__ModuleLoader__.load({
       const state = useAsync(() => {
         // Binary/converted types go through raw (base64); CSV/TSV are text —
         // the client builds the table itself from the read endpoint's content.
+        // HTML goes through `page` (relative refs rewritten to asset URLs).
         if (kind === 'image' || kind === 'pdf' || kind === 'svg' || kind === 'office' || kind === 'audio' || kind === 'video' || kind === 'heic') return api('raw', { source: sourceId, path })
+        if (kind === 'html') return api('page', { source: sourceId, path })
         return api('read', { source: sourceId, path })
       }, [sourceId, path, kind])
+      // Scheme B: scripts stay off until explicitly enabled per session view.
+      const [allowScripts, setAllowScripts] = React.useState(false)
       // PDF blob URL: built here (hoisted hook) — PDFium rejects data: URLs.
       const [pdfUrl, setPdfUrl] = React.useState(undefined)
       React.useEffect(() => {
@@ -920,11 +926,27 @@ window.__ModuleLoader__.load({
       }
       const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' || kind === 'office' ? 'preview' : 'code')
       const isMd = /\.(md|markdown)$/i.test(path)
+      // Original source for the html code view (page endpoint returns the
+      // rewritten document); fetched lazily when the code tab opens.
+      const [sourceCode, setSourceCode] = React.useState(undefined)
+      React.useEffect(() => {
+        if (kind === 'html' && view === 'code' && sourceCode === undefined) {
+          void api('read', { source: sourceId, path })
+            .then((r) => setSourceCode(r.content ?? ''))
+            .catch(() => setSourceCode(''))
+        }
+      }, [kind, view, sourceCode, sourceId, path])
+
       // Toggle only where the two views genuinely differ. Second-tab label:
       // 代码 for source (html/svg), 文本 for extracted plain text (office/csv).
       const toggle = (kind === 'html' || kind === 'svg' || kind === 'office' || kind === 'csv') && h('div', { className: 'kb-view-toggle', role: 'tablist' },
         h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'preview' ? '' : undefined, onClick: () => setView('preview') }, t('preview')),
-        h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'code' ? '' : undefined, onClick: () => setView('code') }, (kind === 'office' || kind === 'csv') ? t('textView') : t('code')))
+        h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'code' ? '' : undefined, onClick: () => setView('code') }, (kind === 'office' || kind === 'csv') ? t('textView') : t('code')),
+        kind === 'html' && h('button', {
+          className: 'kb-seg-btn', style: { height: 22, minWidth: 40 }, role: 'button', title: t('scriptsTitle'),
+          'data-active': allowScripts ? '' : undefined,
+          onClick: () => setAllowScripts(value => !value),
+        }, 'JS'))
       let body = null
       if (state.loading) body = h('div', { className: 'kb-hint' }, t('loading'))
       else if (state.error !== undefined) {
@@ -985,14 +1007,23 @@ window.__ModuleLoader__.load({
               ? h('iframe', { src: pdfUrl, title: name, style: { width: '100%', height: '100%', border: 0 } })
               : h('div', { className: 'kb-hint' }, t('loading')))
         } else if (kind === 'html' && view === 'preview') {
-          // Sandboxed srcdoc iframe: renders markup, scripts stay blocked,
-          // and the document stays same-origin readable for verification.
+          // Web-like preview: the server rewrote relative refs to asset URLs
+          // (images/stylesheets resolve against the KB folder). Scripts are
+          // OFF until the user explicitly enables them (scheme B).
           body = h('div', { className: 'kb-content', style: { padding: 0 } },
             h('iframe', {
-              srcdoc: state.value.content ?? '', title: name,
-              sandbox: 'allow-same-origin',
+              // Keyed by allowScripts: toggling the sandbox flag must reload
+              // the document (a live sandbox change does not apply).
+              key: allowScripts ? 'js-on' : 'js-off',
+              srcdoc: base64ToUtf8(state.value.data ?? ''), title: name,
+              sandbox: allowScripts ? 'allow-same-origin allow-scripts' : 'allow-same-origin',
               style: { width: '100%', height: '100%', border: 0, background: '#fff' },
             }))
+        } else if (kind === 'html' && view === 'code') {
+          // Code view shows the ORIGINAL source (page endpoint returns the
+          // rewritten document); fetched once on demand.
+          body = h('div', { className: 'kb-content', style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', padding: 16 } },
+            sourceCode ?? t('loading'))
         } else if (kind === 'office') {
           // 预览 = server-converted HTML in a sandboxed srcdoc iframe;
           // 文本 = plain-text extraction served alongside the conversion.
