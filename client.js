@@ -80,6 +80,27 @@ window.__ModuleLoader__.load({
         attachAsPath: 'Attach as path', attachAsFile: 'Attach as file',
         attachAsPathHint: 'Agent reads the original file in place',
         attachAsFileHint: 'Upload a copy as a session attachment',
+        // memory view
+        memory: 'Memory', memAll: 'All', memGlobal: 'Global', memWorkspace: 'Workspace', memSession: 'Session',
+        memSearchPlaceholder: 'Search memories…', memNew: 'New', memExport: 'Export', memSnapshots: 'Snapshots',
+        memExportTitle: 'Export memories to a local folder (empty exports into the knowledge base memory folder)',
+        memExportDestPlaceholder: '/absolute/path/to/folder (optional)',
+        memExportSharded: 'WorkBuddy shard format (keywords on line 2)',
+        memExportGo: 'Export', memExporting: 'Exporting…',
+        memExportDone: 'Export finished', memExportHint: 'Exports go to a timestamped subfolder; existing files are never overwritten. A snapshot is taken first.',
+        memSnapshotsTitle: 'Snapshots (auto-created before bulk operations; newest 20 kept)',
+        memNoSnapshots: 'No snapshots yet.', memRestore: 'Verify/rollback', memRestoreDone: 'Snapshot verified',
+        memSavedToast: 'Memory saved', memDeletedToast: 'Memory deleted', memDeleteConfirm: 'Delete memory',
+        memEmpty: 'No memories yet. Save the first one with the memory_save tool or "New".',
+        memSuperseded: 'Superseded', memReadonly: 'WorkBuddy import · read-only',
+        memTitlePlaceholder: 'Title', memKeywordsPlaceholder: 'Keywords (comma separated)',
+        memSummaryPlaceholder: 'One-sentence summary', memCwdPlaceholder: 'Workspace absolute path (e.g. /Users/you/project)',
+        memSaving: 'Saving…',
+        wbMissing: 'WorkBuddy not detected (~/.workbuddy does not exist).',
+        wbStatus: 'WorkBuddy memory folder', wbMemoryFiles: 'memory files', wbPersonal: 'identity files',
+        wbImport: 'Import from WorkBuddy', wbImporting: 'Importing…', wbImportDone: 'Import finished',
+        wbExport: 'Export to WorkBuddy', wbExporting: 'Exporting…', wbExportDone: 'Export finished',
+        wbBridgeHint: 'Imports are read-only copies (identity files are never modified); exports only add files under ~/.workbuddy/memory/dsh-export/ following the sharding convention (keywords on line 2); MEMORY.md is never rewritten.',
       },
       zh: {
         panel: '知识库', iconLabel: '知识库',
@@ -140,6 +161,27 @@ window.__ModuleLoader__.load({
         attachAsPath: '以路径引用附加', attachAsFile: '以附件形式附加',
         attachAsPathHint: 'Agent 原地读取知识库原文件',
         attachAsFileHint: '上传副本作为会话附件',
+        // memory view
+        memory: '记忆', memAll: '全部', memGlobal: '全局', memWorkspace: '工作区', memSession: '会话',
+        memSearchPlaceholder: '搜索记忆…', memNew: '新建', memExport: '导出', memSnapshots: '快照',
+        memExportTitle: '导出记忆到本地路径（留空则导出到知识库记忆目录）',
+        memExportDestPlaceholder: '/absolute/path/to/folder（可选）',
+        memExportSharded: 'WorkBuddy 分片格式（第 2 行 keywords）',
+        memExportGo: '导出', memExporting: '导出中…',
+        memExportDone: '导出完成', memExportHint: '导出到时间戳子目录，不覆盖已有文件；导出前自动创建快照。',
+        memSnapshotsTitle: '快照（批量操作前自动创建，保留最近 20 个）',
+        memNoSnapshots: '暂无快照。', memRestore: '校验/回滚', memRestoreDone: '快照校验完成',
+        memSavedToast: '记忆已保存', memDeletedToast: '记忆已删除', memDeleteConfirm: '删除记忆',
+        memEmpty: '暂无记忆。用 memory_save 工具或点「新建」保存第一条记忆。',
+        memSuperseded: '已被取代', memReadonly: 'WorkBuddy 导入 · 只读',
+        memTitlePlaceholder: '标题', memKeywordsPlaceholder: '关键词（逗号分隔）',
+        memSummaryPlaceholder: '一句话摘要', memCwdPlaceholder: '工作区绝对路径（如 /Users/you/project）',
+        memSaving: '保存中…',
+        wbMissing: '未检测到 WorkBuddy（~/.workbuddy 不存在）。',
+        wbStatus: 'WorkBuddy 记忆目录', wbMemoryFiles: 'memory 文件', wbPersonal: '身份文件',
+        wbImport: '从 WorkBuddy 导入', wbImporting: '导入中…', wbImportDone: '导入完成',
+        wbExport: '导出到 WorkBuddy', wbExporting: '导出中…', wbExportDone: '导出完成',
+        wbBridgeHint: '导入为只读副本（身份文件永不修改）；导出仅新增文件到 ~/.workbuddy/memory/dsh-export/，遵守 sharding 约定（第 2 行 keywords），绝不改写 MEMORY.md。',
       },
     }
     let currentLocale = 'zh'
@@ -729,6 +771,18 @@ window.__ModuleLoader__.load({
 
     // ---------- preview (type-aware: text/md inline, images & pdf via the
     // raw base64 route; html/svg/code gets a 预览/代码 toggle) ----------
+    /** Decode base64 → Uint8Array (for Blob URLs; PDF needs one for PDFium). */
+    const base64ToBytes = (b64) => {
+      const bin = atob(b64)
+      const bytes = new Uint8Array(bin.length)
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i)
+      return bytes
+    }
+    /** Decode base64 → UTF-8 text (server-encoded HTML for srcdoc). */
+    const base64ToUtf8 = (b64) => {
+      try { return decodeURIComponent(escape(atob(b64))) }
+      catch { try { return atob(b64) } catch { return '' } }
+    }
     const PREVIEW_KIND = (name) => {
       const ext = (name.toLowerCase().split('.').pop() ?? '')
       if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'ico'].includes(ext)) return 'image'
@@ -754,6 +808,18 @@ window.__ModuleLoader__.load({
         if (kind === 'image' || kind === 'pdf' || kind === 'svg' || kind === 'office' || kind === 'audio' || kind === 'video' || kind === 'heic') return api('raw', { source: sourceId, path })
         return api('read', { source: sourceId, path })
       }, [sourceId, path, kind])
+      // PDF blob URL: built here (hoisted hook) — PDFium rejects data: URLs.
+      const [pdfUrl, setPdfUrl] = React.useState(undefined)
+      React.useEffect(() => {
+        if (kind === 'pdf' && state.value?.data) {
+          const blob = new Blob([base64ToBytes(state.value.data)], { type: 'application/pdf' })
+          const objectUrl = URL.createObjectURL(blob)
+          setPdfUrl(objectUrl)
+          return () => URL.revokeObjectURL(objectUrl)
+        }
+        setPdfUrl(undefined)
+        return undefined
+      }, [kind, state.value])
       const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' ? 'preview' : 'code')
       const isMd = /\.(md|markdown)$/i.test(path)
       const name = path.split('/').pop()
@@ -813,23 +879,26 @@ window.__ModuleLoader__.load({
             body = h('div', { className: 'kb-content' }, svgText)
           }
         } else if (kind === 'pdf') {
+          // Chromium/Electron's PDFium viewer refuses data: URLs — hand it a
+          // blob: URL instead (pdfUrl is built by the hoisted effect above).
           body = h('div', { className: 'kb-content', style: { padding: 0 } },
-            h('iframe', { src: `data:application/pdf;base64,${state.value.data}`, title: name, style: { width: '100%', height: '100%', border: 0 } }))
+            pdfUrl
+              ? h('iframe', { src: pdfUrl, title: name, style: { width: '100%', height: '100%', border: 0 } })
+              : h('div', { className: 'kb-hint' }, t('loading')))
         } else if (kind === 'html' && view === 'preview') {
-          // Sandboxed iframe: renders markup, scripts stay blocked.
-          const base64 = btoa(unescape(encodeURIComponent(state.value.content)))
+          // Sandboxed srcdoc iframe: renders markup, scripts stay blocked,
+          // and the document stays same-origin readable for verification.
           body = h('div', { className: 'kb-content', style: { padding: 0 } },
             h('iframe', {
-              src: `data:text/html;base64,${base64}`, title: name,
+              srcdoc: state.value.content ?? '', title: name,
               sandbox: 'allow-same-origin',
               style: { width: '100%', height: '100%', border: 0, background: '#fff' },
             }))
         } else if (kind === 'office') {
-          // Office files converted to HTML on the server
-          const base64 = state.value.data
+          // Office files converted to HTML on the server → srcdoc iframe.
           body = h('div', { className: 'kb-content', style: { padding: 0 } },
             h('iframe', {
-              src: `data:text/html;base64,${base64}`, title: name,
+              srcdoc: base64ToUtf8(state.value.data ?? ''), title: name,
               sandbox: 'allow-same-origin',
               style: { width: '100%', height: '100%', border: 0, background: '#fff' },
             }))
@@ -977,6 +1046,237 @@ window.__ModuleLoader__.load({
               h('span', null, String(data.index.entries))),
           ),
         ))
+    }
+
+    // ---------- tiered memory view ----------
+    function MemoryView(props) {
+      const showToast = props.showToast
+      const [memState, setMemState] = React.useState({ loading: true })
+      const [tierFilter, setTierFilter] = React.useState('all')
+      const [query, setQuery] = React.useState('')
+      const [editing, setEditing] = React.useState(undefined) // { path, meta, body } | { newTier }
+      const [exportOpen, setExportOpen] = React.useState(false)
+      const [exportDest, setExportDest] = React.useState('')
+      const [exportTier, setExportTier] = React.useState('all')
+      const [exportSharded, setExportSharded] = React.useState(false)
+      const [exporting, setExporting] = React.useState(false)
+      const [snapshots, setSnapshots] = React.useState([])
+      const [snapOpen, setSnapOpen] = React.useState(false)
+      const [wb, setWb] = React.useState(undefined)
+      const [wbBusy, setWbBusy] = React.useState('')
+
+      const reload = React.useCallback(async () => {
+        setMemState({ loading: true })
+        try {
+          const data = await api('memory-list')
+          setMemState({ memories: data.memories ?? [], root: data.root })
+        } catch (error) {
+          setMemState({ error: error instanceof Error ? error.message : String(error) })
+        }
+      }, [])
+      React.useEffect(() => { void reload() }, [reload])
+      const reloadSnapshots = React.useCallback(async () => {
+        try {
+          const data = await api('memory-snapshots')
+          setSnapshots(data.snapshots ?? [])
+        } catch { setSnapshots([]) }
+      }, [])
+      const reloadWb = React.useCallback(async () => {
+        try {
+          const data = await api('wb-status')
+          setWb(data)
+        } catch { setWb({ available: false }) }
+      }, [])
+      React.useEffect(() => { void reloadSnapshots(); void reloadWb() }, [reloadSnapshots, reloadWb])
+
+      const memories = memState.memories ?? []
+      const visible = query.trim().length > 0
+        ? memories.filter((item) => `${item.title} ${item.keywords.join(' ')} ${item.summary}`.toLowerCase().includes(query.trim().toLowerCase()))
+        : memories
+      const filtered = tierFilter === 'all' ? visible : visible.filter((item) => item.tier === tierFilter)
+      const countByTier = (tier) => memories.filter((item) => item.tier === tier).length
+
+      const openNew = () => setEditing({ newTier: tierFilter === 'all' ? 'global' : tierFilter })
+      const openEdit = async (item) => {
+        try {
+          const data = await api('memory-read', { path: item.path })
+          setEditing({ path: item.path, meta: data.meta ?? {}, body: data.body ?? '', workbuddy: item.source === 'workbuddy' })
+        } catch (error) {
+          showToast(`${t('loadFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        }
+      }
+      const saveEdit = async (title, keywords, summary, body, tier, cwd) => {
+        try {
+          if (editing?.path !== undefined) {
+            // Rewrite in place through the write path: delete + create keeps meta consistent.
+            await postKb('memory-delete', { path: editing.path })
+          }
+          await postKb('memory-save', { tier, title, keywords, summary, content: body, cwd })
+          showToast(t('memSavedToast'))
+          setEditing(undefined)
+          await reload()
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        }
+      }
+      const removeMemory = async (item) => {
+        if (!window.confirm(`${t('memDeleteConfirm')}: ${item.title}?`)) return
+        try {
+          await postKb('memory-delete', { path: item.path })
+          showToast(t('memDeletedToast'))
+          await reload()
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        }
+      }
+      const runExport = async () => {
+        setExporting(true)
+        try {
+          const data = await postKb('memory-export', { destination: exportDest.trim() || undefined, tier: exportTier, format: exportSharded ? 'sharded' : 'flat' })
+          showToast(`${t('memExportDone')}: ${data.exported} → ${data.destination}`)
+          setExportOpen(false)
+          await Promise.all([reloadSnapshots(), reload()])
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally {
+          setExporting(false)
+        }
+      }
+      const restoreSnapshot = async (name) => {
+        try {
+          const data = await postKb('memory-restore', { snapshot: name })
+          showToast(`${t('memRestoreDone')}: ${data.verified}/${data.files}`)
+          setSnapOpen(false)
+          await reload()
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        }
+      }
+      const runWbImport = async () => {
+        setWbBusy('import')
+        try {
+          const data = await postKb('wb-import', {})
+          showToast(`${t('wbImportDone')}: ${data.count}`)
+          await Promise.all([reload(), reloadWb(), reloadSnapshots()])
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally { setWbBusy('') }
+      }
+      const runWbExport = async () => {
+        setWbBusy('export')
+        try {
+          const data = await postKb('wb-export', {})
+          showToast(`${t('wbExportDone')}: ${data.count} → ${data.destination}`)
+          await Promise.all([reloadSnapshots(), reloadWb()])
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally { setWbBusy('') }
+      }
+
+      const tierChip = (tier, label) => h('button', {
+        className: 'kb-src-chip', 'data-active': tierFilter === tier ? '' : undefined,
+        onClick: () => setTierFilter(tier),
+      }, `${label} (${tier === 'all' ? memories.length : countByTier(tier)})`)
+
+      if (memState.loading) return h('div', { className: 'kb-hint' }, t('loading'))
+      if (memState.error !== undefined) return h('div', { className: 'kb-hint kb-status-error' }, `${t('loadFailed')}: ${memState.error}`)
+
+      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } },
+        h('div', { className: 'kb-toolbar', style: { gap: 8, flexWrap: 'wrap' } },
+          tierChip('all', t('memAll')),
+          tierChip('global', t('memGlobal')),
+          tierChip('workspace', t('memWorkspace')),
+          tierChip('session', t('memSession')),
+          memories.some((item) => item.tier === 'workbuddy') && tierChip('workbuddy', 'WorkBuddy'),
+          h('div', { style: { flex: 1 } }),
+          h('div', { className: 'kb-search-box' },
+            Icon.searchGlyph(14),
+            h('input', { value: query, placeholder: t('memSearchPlaceholder'), onChange: (event) => setQuery(event.target.value) }),
+            query.length > 0 && h('button', { className: 'kb-search-clear', onClick: () => setQuery('') }, '×')),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: openNew }, Icon.plus(), t('memNew')),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setExportOpen(value => !value) }, Icon.upload2(), t('memExport')),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { setSnapOpen(value => !value); void reloadSnapshots() } }, Icon.task(), t('memSnapshots'))),
+        exportOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
+          h('div', { className: 'kb-diag-key' }, t('memExportTitle')),
+          h('input', { value: exportDest, placeholder: t('memExportDestPlaceholder'), onChange: (event) => setExportDest(event.target.value), style: { width: '100%' } }),
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+            h('select', { value: exportTier, onChange: (event) => setExportTier(event.target.value), className: 'kb-btn kb-btn-sm' },
+              h('option', { value: 'all' }, t('memAll')),
+              h('option', { value: 'global' }, t('memGlobal')),
+              h('option', { value: 'workspace' }, t('memWorkspace')),
+              h('option', { value: 'session' }, t('memSession')),
+              h('option', { value: 'workbuddy' }, 'WorkBuddy')),
+            h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 } },
+              h('input', { type: 'checkbox', checked: exportSharded, onChange: (event) => setExportSharded(event.target.checked) }),
+              t('memExportSharded')),
+            h('button', { className: 'kb-btn kb-btn-sm', disabled: exporting, onClick: runExport }, exporting ? t('memExporting') : t('memExportGo'))),
+          h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('memExportHint'))),
+        snapOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 6 } },
+          h('div', { className: 'kb-diag-key' }, t('memSnapshotsTitle')),
+          snapshots.length === 0 ? h('div', { className: 'kb-hint' }, t('memNoSnapshots')) :
+            snapshots.map((snap) => h('div', { key: snap.name, style: { display: 'flex', gap: 8, alignItems: 'center' } },
+              h('code', { style: { fontSize: 11 } }, snap.name),
+              h('button', { className: 'kb-btn kb-btn-sm', onClick: () => restoreSnapshot(snap.name) }, t('memRestore'))))),
+        editing !== undefined && h(MemoryEditor, {
+          initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,
+        }),
+        h('div', { className: 'kb-surface', style: { padding: 4 } },
+          filtered.length === 0
+            ? h('div', { className: 'kb-empty', style: { padding: 20 } }, h('div', { className: 'kb-empty-desc' }, t('memEmpty')))
+            : filtered.map((item) => h('div', {
+              key: item.path, className: 'kb-diag-row', style: { alignItems: 'flex-start', padding: '8px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)' },
+            },
+              h('div', { style: { flex: 1, minWidth: 0 } },
+                h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
+                  h('span', { className: `kb-status ${item.tier === 'global' ? 'kb-status-ok' : item.tier === 'workbuddy' ? 'kb-status-warn' : ''}` }, item.tier),
+                  item.supersededBy !== undefined && h('span', { className: 'kb-status kb-status-warn' }, t('memSuperseded')),
+                  h('strong', { style: { fontSize: 13 } }, item.title)),
+                item.keywords.length > 0 && h('div', { style: { fontSize: 11, opacity: 0.7, marginTop: 2 } }, item.keywords.join(' · ')),
+                h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, item.summary),
+                h('div', { style: { fontSize: 10, opacity: 0.5, marginTop: 2, fontFamily: 'monospace' } }, item.path)),
+              h('div', { style: { display: 'flex', gap: 4, flex: 'none' } },
+                h('button', { className: 'kb-btn kb-btn-sm', onClick: () => openEdit(item) }, t('edit')),
+                item.source !== 'workbuddy' && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
+        h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
+          h('div', { className: 'kb-diag-key' }, 'WorkBuddy'),
+          wb === undefined ? h('div', { className: 'kb-hint' }, t('loading'))
+            : wb.available === false ? h('div', { className: 'kb-hint' }, t('wbMissing'))
+              : h('div', { style: { display: 'grid', gap: 6 } },
+                h('div', { style: { fontSize: 12, opacity: 0.8 } },
+                  `${t('wbStatus')}: ${wb.home} · ${t('wbMemoryFiles')}: ${wb.memoryFiles ?? 0} · ${t('wbPersonal')}: ${(wb.personal ?? []).length}`),
+                h('div', { style: { display: 'flex', gap: 8 } },
+                  h('button', { className: 'kb-btn kb-btn-sm', disabled: wbBusy !== '', onClick: runWbImport }, wbBusy === 'import' ? t('wbImporting') : t('wbImport')),
+                  h('button', { className: 'kb-btn kb-btn-sm', disabled: wbBusy !== '', onClick: runWbExport }, wbBusy === 'export' ? t('wbExporting') : t('wbExport'))),
+                h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('wbBridgeHint')))),
+      )
+    }
+
+    function MemoryEditor(props) {
+      const initial = props.initial
+      const isNew = initial?.newTier !== undefined
+      const [title, setTitle] = React.useState(isNew ? '' : initial.meta?.title ?? '')
+      const [keywords, setKeywords] = React.useState(isNew ? '' : (Array.isArray(initial.meta?.keywords) ? initial.meta.keywords : []).join(', '))
+      const [summary, setSummary] = React.useState(isNew ? '' : initial.meta?.summary ?? '')
+      const [body, setBody] = React.useState(isNew ? '' : initial.body ?? '')
+      const [tier, setTier] = React.useState(isNew ? initial.newTier : initial.meta?.tier === 'workbuddy' ? 'global' : initial.meta?.tier ?? 'global')
+      const [cwd, setCwd] = React.useState('')
+      const [saving, setSaving] = React.useState(false)
+      const readonly = initial?.workbuddy === true
+      return h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
+        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+          isNew && h('select', { value: tier, onChange: (event) => setTier(event.target.value), className: 'kb-btn kb-btn-sm' },
+            h('option', { value: 'global' }, t('memGlobal')),
+            h('option', { value: 'workspace' }, t('memWorkspace')),
+            h('option', { value: 'session' }, t('memSession'))),
+          !isNew && readonly && h('span', { className: 'kb-status kb-status-warn' }, t('memReadonly'))),
+        isNew && tier === 'workspace' && h('input', { value: cwd, placeholder: t('memCwdPlaceholder'), onChange: (event) => setCwd(event.target.value), style: { width: '100%' } }),
+        h('input', { value: title, disabled: readonly, placeholder: t('memTitlePlaceholder'), onChange: (event) => setTitle(event.target.value), style: { width: '100%', fontWeight: 600 } }),
+        h('input', { value: keywords, disabled: readonly, placeholder: t('memKeywordsPlaceholder'), onChange: (event) => setKeywords(event.target.value), style: { width: '100%' } }),
+        h('input', { value: summary, disabled: readonly, placeholder: t('memSummaryPlaceholder'), onChange: (event) => setSummary(event.target.value), style: { width: '100%' } }),
+        h('textarea', { value: body, disabled: readonly, onChange: (event) => setBody(event.target.value), rows: 8, style: { width: '100%', fontFamily: 'monospace', fontSize: 12, resize: 'vertical' } }),
+        h('div', { style: { display: 'flex', gap: 8 } },
+          h('button', { className: 'kb-btn kb-btn-sm', disabled: saving || readonly || title.trim().length === 0 || body.trim().length === 0, onClick: () => { setSaving(true); void props.onSave(title.trim(), keywords, summary, body, tier, cwd.trim()).finally(() => setSaving(false)) } }, saving ? t('memSaving') : t('save')),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: props.onCancel }, t('cancel'))))
     }
 
     // ---------- source form ----------
@@ -1518,7 +1818,7 @@ window.__ModuleLoader__.load({
         catch { return undefined }
       }, [])
       const sourcesState = useAsync(() => api('sources'), [])
-      const [view, setView] = React.useState(undefined) // undefined = auto; 'wizard' | 'sources' | 'form' | 'browse' | 'search' | 'diag'
+      const [view, setView] = React.useState(undefined) // undefined = auto; 'wizard' | 'sources' | 'form' | 'browse' | 'search' | 'diag' | 'memory'
       const [formTarget, setFormTarget] = React.useState(undefined)
       const [selectedId, setSelectedId] = React.useState(undefined)
       const [activeFile, setActiveFile] = React.useState(undefined)
@@ -1607,6 +1907,7 @@ window.__ModuleLoader__.load({
       const header = h('div', { className: 'kb-head' },
         h('h1', { className: 'kb-head-title' }, t('panel')),
         h('div', { className: 'kb-head-space' }),
+        h('button', { className: 'kb-btn', onClick: () => { setView('memory'); setFormTarget(undefined) } }, Icon.task(), t('memory')),
         h('button', { className: 'kb-btn', onClick: () => { setView('diag'); setFormTarget(undefined) } }, Icon.gear(), t('diagnostics')),
         canEdit && h('button', { className: 'kb-btn', onClick: () => { setView('sources'); setFormTarget(undefined) } }, t('sources')),
       )
@@ -1735,6 +2036,7 @@ window.__ModuleLoader__.load({
             onDone: () => { setView('browse'); setFormTarget(undefined); reloadSources() },
           }))
         : effectiveView === 'diag' ? h(DiagnosticsView, null)
+        : effectiveView === 'memory' ? h(MemoryView, { showToast })
         : h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } }, mainBar, browseMain)
 
       return h('div', { className: 'kb-page' },
