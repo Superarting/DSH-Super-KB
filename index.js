@@ -1012,15 +1012,60 @@ async function fileManageOp(ctx, source, op, request) {
   }
 
   if (op === 'delete') {
+    // Soft delete: move into <root>/.trash/<timestamp>_<name> so the user can
+    // undo (restoreTrash) or recover the file in Finder. The trash folder is
+    // invisible in the tree (dot-prefixed entries are filtered).
     const target = await resolveInsideSource(source, body?.path)
     if (target === undefined) return fail(400, 'bad-path', 'invalid path')
+    const nodePath = (await import('node:path')).default
+    const root = nodePath.resolve(source.path)
+    const trashDir = nodePath.join(root, '.trash')
+    await nodeFs.promises.mkdir(trashDir, { recursive: true })
+    const base = nodePath.basename(target)
+    const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+    let trashName = `${stamp}_${base}`
+    let serial = 1
+    while (true) {
+      try { await nodeFs.promises.access(nodePath.join(trashDir, trashName)); trashName = `${stamp}_${serial}_${base}`; serial += 1 }
+      catch { break }
+    }
     try {
-      await nodeFs.promises.rm(target, { recursive: true })
+      await nodeFs.promises.rename(target, nodePath.join(trashDir, trashName))
     } catch (error) {
       return fail(409, 'delete-failed', error instanceof Error ? error.message : 'delete refused')
     }
     searchIndex.delete(indexKey(source))
-    return okPayload({ deleted: true })
+    return okPayload({ deleted: true, trashPath: `.trash/${trashName}`, originalPath: body?.path })
+  }
+
+  if (op === 'restoreTrash') {
+    // Undo for soft delete: move a .trash entry back to its original spot.
+    // If the original location is taken again, a numeric suffix avoids clobber.
+    const trashRel = typeof body?.trashPath === 'string' ? body.trashPath : ''
+    const originalRel = typeof body?.originalPath === 'string' ? body.originalPath : ''
+    if (!trashRel.startsWith('.trash/') || originalRel.length === 0) return fail(400, 'bad-path', 'invalid restore paths')
+    const nodePath = (await import('node:path')).default
+    const root = nodePath.resolve(source.path)
+    const trashAbs = nodePath.resolve(root, trashRel)
+    const originalAbs = nodePath.resolve(root, originalRel)
+    if (!trashAbs.startsWith(nodePath.join(root, '.trash') + nodePath.sep)) return fail(400, 'bad-path', 'not a trash path')
+    if (!originalAbs.startsWith(root + nodePath.sep)) return fail(400, 'bad-path', 'path escapes the source root')
+    let dest = originalAbs
+    const ext = nodePath.extname(originalAbs)
+    const stem = originalAbs.slice(0, originalAbs.length - ext.length)
+    let serial = 1
+    while (true) {
+      try { await nodeFs.promises.access(dest); dest = `${stem} (${serial})${ext}`; serial += 1 }
+      catch { break }
+    }
+    await nodeFs.promises.mkdir(nodePath.dirname(dest), { recursive: true })
+    try {
+      await nodeFs.promises.rename(trashAbs, dest)
+    } catch (error) {
+      return fail(409, 'restore-failed', error instanceof Error ? error.message : 'restore refused')
+    }
+    searchIndex.delete(indexKey(source))
+    return okPayload({ restored: true, path: nodePath.relative(root, dest) })
   }
 
   if (op === 'reveal') {

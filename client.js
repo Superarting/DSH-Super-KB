@@ -67,7 +67,8 @@ window.__ModuleLoader__.load({
         emptyTreeTitle: 'Nothing here yet', emptyTreeDesc: 'Use New to create a document, or upload files into this folder.',
         emptySourceTitle: 'This source is empty', emptySourceDesc: 'Add files to the folder or create a new document.',
         noHitsTitle: 'No matches', noHitsDesc: 'Try different keywords, or search another source.',
-        confirmDeleteTitle: 'Delete confirmation', confirmDeleteFile: 'Delete “{name}”? This cannot be undone.',
+        confirmDeleteTitle: 'Delete confirmation', confirmDeleteFile: 'Delete “{name}”? (moves to Trash — undoable)',
+        undo: 'Undo', trashDeleted: 'Moved to Trash', trashRestored: 'Restored',
         confirm: 'Confirm', retry: 'Retry',
         selectHint: 'Select a document on the left to preview it here.',
         previewUnsupported: 'Inline preview is not available for this type; use Reveal in folder to open it with the system app.',
@@ -76,6 +77,7 @@ window.__ModuleLoader__.load({
         addFile: 'Add file', localFile: 'Local file…',
         attached: 'Attached {name} to the session', attachFailed: 'Attach failed',
         rootFolder: 'Source root', moveHere: 'Move here', preview: 'Preview', code: 'Code', textView: 'Text',
+        resizeSidebar: 'Resize sidebar', resizeSidebarHint: 'Drag to resize · double-click to reset',
         readKbFile: 'Please read the knowledge-base file',
         attachAsPath: 'Attach as path', attachAsFile: 'Attach as file',
         attachAsPathHint: 'Agent reads the original file in place',
@@ -148,7 +150,8 @@ window.__ModuleLoader__.load({
         emptyTreeTitle: '这里还没有内容', emptyTreeDesc: '用“新建”创建文档，或把文件上传到这个文件夹。',
         emptySourceTitle: '此来源为空', emptySourceDesc: '向文件夹添加文件，或新建一个文档。',
         noHitsTitle: '没有匹配结果', noHitsDesc: '换个关键词试试，或切换到其它来源搜索。',
-        confirmDeleteTitle: '删除确认', confirmDeleteFile: '删除“{name}”？此操作不可撤销。',
+        confirmDeleteTitle: '删除确认', confirmDeleteFile: '删除“{name}”？（移入回收站，可撤销）',
+        undo: '撤销', trashDeleted: '已移入回收站', trashRestored: '已恢复原位',
         confirm: '确认', retry: '重试',
         selectHint: '在左侧选择文档，这里将展示预览。',
         previewUnsupported: '此类型暂不支持内嵌预览，可点“打开文件夹”用系统应用查看。',
@@ -157,6 +160,7 @@ window.__ModuleLoader__.load({
         addFile: '添加文件', localFile: '本地文件…',
         attached: '已将 {name} 附加到会话', attachFailed: '附加失败',
         rootFolder: '来源根目录', moveHere: '移动到此处', preview: '预览', code: '代码', textView: '文本',
+        resizeSidebar: '调整侧栏宽度', resizeSidebarHint: '拖动调整宽度 · 双击恢复默认',
         readKbFile: '请阅读知识库文件',
         attachAsPath: '以路径引用附加', attachAsFile: '以附件形式附加',
         attachAsPathHint: 'Agent 原地读取知识库原文件',
@@ -218,9 +222,12 @@ window.__ModuleLoader__.load({
 .kb-side{width:var(--kb-side-width,240px);min-width:180px;max-width:480px;display:flex;flex-direction:column;min-height:0;flex:none;background:var(--dsw-alias-sidebar-fill,#f5f5f5);border-right:1px solid var(--dsw-alias-border-l1)}
 .kb-side-top{padding:80px 10px 4px;flex:none}
 .kb-side-scroll{flex:1;overflow:auto;padding:0 10px 10px;min-height:0}
-.kb-side-drag{flex:none;width:5px;margin-left:-5px;cursor:col-resize;position:relative;z-index:2}
-.kb-side-drag::after{content:'';position:absolute;inset:0 -2px}
+.kb-side-drag{flex:none;width:8px;margin-left:-8px;cursor:col-resize;position:relative;z-index:2}
+.kb-side-drag::before{content:'';position:absolute;top:50%;left:1px;width:3px;height:26px;transform:translateY(-50%);border-radius:3px;background:var(--dsw-alias-border-l1);opacity:.7;transition:background .15s,opacity .15s}
+.kb-side-drag:hover::before{background:var(--dsw-alias-brand-primary);opacity:1}
 .kb-side-drag[data-dragging]{background:var(--dsw-alias-brand-primary);opacity:.35}
+.kb-side-drag[data-dragging]::before{background:var(--dsw-alias-brand-primary);opacity:1}
+.kb-inline-rename{font:inherit;font-size:13px;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer1);border:0;border-bottom:1px solid var(--dsw-alias-brand-primary);outline:0;padding:0 2px;width:70%;min-width:90px;border-radius:2px}
 .kb-main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;box-sizing:border-box;background:var(--dsw-alias-bg-base);overflow:hidden}
 .kb-toolbar{display:flex;gap:8px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .kb-input{appearance:none;height:32px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);border-radius:var(--dsw-radius-md);padding:0 10px;font-size:13px;min-width:0}
@@ -276,6 +283,10 @@ window.__ModuleLoader__.load({
 .kb-hit-snippet{color:var(--dsw-alias-label-secondary);font-size:12px;margin-top:3px}
 .kb-toast{position:absolute;top:80px;right:24px;background:var(--dsw-alias-bg-overlay);border:1px solid var(--dsw-alias-border-l2);border-radius:var(--dsw-radius-md);padding:8px 14px;font-size:13px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:20}
 .kb-crumb{color:var(--dsw-alias-label-secondary);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb-crumb-path{display:flex;align-items:center;gap:2px;min-width:0;overflow:hidden;flex:1}
+.kb-crumb-seg{border:0;background:transparent;padding:2px 4px;border-radius:4px;font-size:12px;color:var(--dsw-alias-label-secondary);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px}
+.kb-crumb-seg:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer2)}
+.kb-crumb-here{font-size:13px;color:var(--dsw-alias-label-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 /* Popups: white overlay panel, radius-md, soft elevation; fixed positioning
    computed against the anchor box. New-menu form mirrors host modal forms. */
 .kb-pop{position:fixed;z-index:60;min-width:200px;background:#fff;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);box-shadow:0 4px 16px rgba(0,0,0,.08),0 1px 3px rgba(0,0,0,.05);padding:4px}
@@ -640,8 +651,12 @@ window.__ModuleLoader__.load({
           text: item.text,
           depth: 0,
           activePath: props.activePath,
+          reveal: props.reveal,
           onOpen: props.onOpen,
           onChanged: props.onChanged,
+          onRenamed: props.onRenamed,
+          onToast: props.onToast,
+          onDeleteDone: props.onDeleteDone,
           renderMoreMenu: props.renderMoreMenu,
           openSession: props.openSession,
           startSession: props.startSession,
@@ -659,6 +674,8 @@ window.__ModuleLoader__.load({
       const [children, setChildren] = React.useState(null)
       const [error, setError] = React.useState(undefined)
       const [menuOpen, setMenuOpen] = React.useState(false)
+      const [editing, setEditing] = React.useState(false)
+      const editingRef = React.useRef(false)
       const rowRef = React.useRef(null)
       const moreRef = React.useRef(null)
       const load = React.useCallback(() => {
@@ -672,6 +689,16 @@ window.__ModuleLoader__.load({
         treeBus.listeners.add(onRefresh)
         return () => { treeBus.listeners.delete(onRefresh) }
       }, [open, load])
+      // Breadcrumb reveal: when a folder on the path to props.reveal.dirPath
+      // is not open yet, open it (once per reveal tick).
+      React.useEffect(() => {
+        const rev = props.reveal
+        if (rev === undefined || kind !== 'folder' || rev.sourceId !== sourceId) return
+        if (rev.dirPath === path || rev.dirPath.startsWith(`${path}/`)) {
+          if (!open) { if (children === null) load(); setOpen(true) }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [props.reveal?.tick])
       const toggle = () => {
         if (kind !== 'folder') return
         if (!open && children === null) load()
@@ -680,11 +707,29 @@ window.__ModuleLoader__.load({
       // Files mark selection (right pane previews); folders expand. The tree
       // itself never jumps or re-layouts on selection.
       const activate = () => {
+        if (editingRef.current) return
         toggle()
         if (kind === 'file') onOpen({ sourceId, path, name, kind })
       }
+      // F2 (or double-click on the name) starts inline rename.
+      const startInlineRename = () => { editingRef.current = true; setEditing(true) }
       const onKey = (event) => {
+        if (editingRef.current) return
         if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate() }
+        else if (event.key === 'F2' && kind === 'file') { event.preventDefault(); startInlineRename() }
+      }
+      // Inline rename: Enter/blur commits, Esc cancels (blur-after-commit is
+      // a no-op via editingRef).
+      const submitRename = (inputEl) => {
+        if (!editingRef.current) return
+        editingRef.current = false
+        const value = inputEl.value.trim()
+        setEditing(false)
+        if (value.length === 0 || value === name) return
+        const parentDir = path.includes('/') ? `${path.slice(0, path.lastIndexOf('/'))}/` : ''
+        void postKb('rename', { from: path, to: `${parentDir}${value}` })
+          .then(() => { props.onChanged(); props.onRenamed?.(path, `${parentDir}${value}`) })
+          .catch((error) => props.onToast?.(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true))
       }
       const isActive = props.activePath === path
       // Folders keep their breathing room to the name (line glyphs read
@@ -699,6 +744,10 @@ window.__ModuleLoader__.load({
           style: { paddingLeft: Math.max(6, 6 + depth * 14) },
           onClick: activate,
           onKeyDown: onKey,
+          onDoubleClick: (event) => {
+            if (event.target.closest('.kb-tree-more') || event.target.classList.contains('kb-inline-rename')) return
+            if (kind === 'file') { event.stopPropagation(); startInlineRename() }
+          },
           tabIndex: 0,
           role: kind === 'folder' ? 'treeitem' : 'button',
           'aria-expanded': kind === 'folder' ? open : undefined,
@@ -707,7 +756,20 @@ window.__ModuleLoader__.load({
         },
           kind === 'folder' ? Icon.chevron(open) : h('span', { className: 'kb-tree-caret' }),
           fileIcon,
-          h('span', { className: 'kb-tree-name' }, name),
+          editing
+            ? h('input', {
+              className: 'kb-inline-rename', defaultValue: name, autoFocus: true,
+              onClick: (event) => event.stopPropagation(),
+              onDoubleClick: (event) => event.stopPropagation(),
+              onFocus: (event) => event.target.select(),
+              onKeyDown: (event) => {
+                event.stopPropagation()
+                if (event.key === 'Enter') submitRename(event.target)
+                else if (event.key === 'Escape') { editingRef.current = false; setEditing(false) }
+              },
+              onBlur: (event) => submitRename(event.target),
+            })
+            : h('span', { className: 'kb-tree-name', title: name }, name),
           h('span', { className: 'kb-tree-hit' },
             h('button', {
               ref: moreRef,
@@ -717,7 +779,7 @@ window.__ModuleLoader__.load({
             }, Icon.moreH())),
         ),
         menuOpen && h(Popup, { anchor: moreRef.current, onClose: () => setMenuOpen(false) },
-          h(props.renderMoreMenu, { sourceId, path, name, kind, onClose: () => setMenuOpen(false), onChanged: props.onChanged, anchor: moreRef.current, openSession: props.openSession, startSession: props.startSession, readSourceRoot: props.readSourceRoot }),
+          h(props.renderMoreMenu, { sourceId, path, name, kind, onClose: () => setMenuOpen(false), onChanged: props.onChanged, anchor: moreRef.current, openSession: props.openSession, startSession: props.startSession, readSourceRoot: props.readSourceRoot, onInlineRename: startInlineRename, onToast: props.onToast, onDeleteDone: props.onDeleteDone }),
         ),
         open && error !== undefined && h('div', { className: 'kb-hint', style: { paddingLeft: 20 + depth * 14 } }, `${t('loadFailed')}: ${error}`),
         open && children !== null && children.length === 0 && h('div', { className: 'kb-hint', style: { paddingLeft: 20 + depth * 14 } }, t('emptyFolder')),
@@ -732,8 +794,12 @@ window.__ModuleLoader__.load({
               text: child.text,
               depth: depth + 1,
               activePath: props.activePath,
+              reveal: props.reveal,
               onOpen,
               onChanged: props.onChanged,
+              onRenamed: props.onRenamed,
+              onToast: props.onToast,
+              onDeleteDone: props.onDeleteDone,
               renderMoreMenu: props.renderMoreMenu,
               openSession: props.openSession,
               startSession: props.startSession,
@@ -820,9 +886,37 @@ window.__ModuleLoader__.load({
         setPdfUrl(undefined)
         return undefined
       }, [kind, state.value])
+      // Toolbar ⋯ menu (same actions as the tree-row menu, in preview context).
+      const [menuOpen, setMenuOpen] = React.useState(false)
+      const moreRef = React.useRef(null)
+      // Esc returns to browse: window-level listener because focus may sit on
+      // body after a popup closes. Guards: popups/modals/text fields handle
+      // Esc themselves and win.
+      React.useEffect(() => {
+        const onKey = (event) => {
+          if (event.key !== 'Escape') return
+          if (menuOpen) return
+          const active = document.activeElement
+          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+          if (document.querySelector('.kb-pop, .kb-modal')) return
+          event.preventDefault()
+          props.onBack()
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [menuOpen, props.onBack])
+      // Breadcrumb segments: every directory above the file, minus the root
+      // (the root is the always-first source-name segment).
+      const name = path.split('/').pop()
+      const dirSegments = []
+      {
+        const parts = path.split('/')
+        for (let i = 0; i < parts.length - 1; i += 1) {
+          dirSegments.push({ name: parts[i], path: parts.slice(0, i + 1).join('/') })
+        }
+      }
       const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' || kind === 'office' ? 'preview' : 'code')
       const isMd = /\.(md|markdown)$/i.test(path)
-      const name = path.split('/').pop()
       // Toggle only where the two views genuinely differ. Second-tab label:
       // 代码 for source (html/svg), 文本 for extracted plain text (office/csv).
       const toggle = (kind === 'html' || kind === 'svg' || kind === 'office' || kind === 'csv') && h('div', { className: 'kb-view-toggle', role: 'tablist' },
@@ -941,12 +1035,23 @@ window.__ModuleLoader__.load({
       }
       return h('div', { className: 'kb-surface' },
         h('div', { className: 'kb-toolbar', style: { borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
+          h('button', { className: 'kb-btn', style: { padding: '4px 8px' }, onClick: props.onBack, title: t('back'), 'aria-label': t('back') }, '‹'),
           fileTypeIcon(name, 22),
-          h('span', { className: 'kb-crumb', style: { fontSize: '13px', color: 'var(--dsw-alias-label-primary)', marginLeft: 2 } }, name),
-          toggle),
+          h('div', { className: 'kb-crumb-path' },
+            h('button', { className: 'kb-crumb-seg', onClick: () => props.onOpenDir?.('') }, props.sourceName ?? ''),
+            ...dirSegments.map((seg, i) => h(React.Fragment, { key: i },
+              h('span', { style: { color: 'var(--dsw-alias-label-caption)', flex: 'none' } }, '›'),
+              h('button', { className: 'kb-crumb-seg', onClick: () => props.onOpenDir?.(seg.path) }, seg.name))),
+            h('span', { style: { color: 'var(--dsw-alias-label-caption)', flex: 'none' } }, '›'),
+            h('span', { className: 'kb-crumb-here' }, name)),
+          toggle,
+          h('button', {
+            ref: moreRef, className: 'kb-icon-btn kb-tree-more', 'aria-label': t('more'),
+            onClick: (event) => { event.stopPropagation(); setMenuOpen(value => !value) },
+          }, Icon.moreH())),
         body,
-        h('div', { className: 'kb-surface-foot' },
-          h('button', { className: 'kb-btn', onClick: props.onBack }, '‹ ', t('back'))),
+        menuOpen && h(Popup, { anchor: moreRef.current, onClose: () => setMenuOpen(false) },
+          h(MoreMenu, { sourceId, path, name, kind: 'file', onClose: (message) => { setMenuOpen(false); if (message) props.onToast?.(message) }, onChanged: props.onChanged, anchor: moreRef.current, openSession: props.openSession, startSession: props.startSession, readSourceRoot: props.readSourceRoot, onAfterOp: props.onAfterOp, onDeleteDone: props.onDeleteDone })),
       )
     }
 
@@ -976,17 +1081,28 @@ window.__ModuleLoader__.load({
 
     function SearchView(props) {
       const source = props.source
-      const [state, setState] = React.useState({ idle: true })
+      // Result state lives in the panel (props.result/onResult) so switching
+      // Browse↔Search keeps the last search's hits instead of resetting.
+      const [state, setState] = React.useState(props.result ?? { idle: true })
+      const emit = React.useCallback((next) => { setState(next); props.onResult?.(next) }, [props.onResult])
       const run = React.useCallback(() => {
         const trimmed = (props.query ?? '').trim()
-        if (!trimmed) { setState({ idle: true }); return }
-        setState({ loading: true })
+        if (!trimmed) { emit({ idle: true }); return }
+        emit({ loading: true })
         api('search', { source: source.id, q: trimmed })
-          .then((payload) => setState({ loading: false, value: payload }))
-          .catch((error) => setState({ loading: false, error: error instanceof Error ? error.message : String(error) }))
-      }, [source.id, props.query])
+          .then((payload) => emit({ loading: false, value: payload }))
+          .catch((error) => emit({ loading: false, error: error instanceof Error ? error.message : String(error) }))
+      }, [source.id, props.query, emit])
+      // Mount = mode switch: keep a preserved result; run only when there is
+      // nothing preserved (first-ever search). Later runTick bumps always run.
+      const mounted = React.useRef(false)
       React.useEffect(() => {
-        if (props.runTick > 0) run()
+        if (!mounted.current) {
+          mounted.current = true
+          if (props.result === undefined || props.result.idle === true) run()
+          return
+        }
+        run()
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [props.runTick, source.id])
       const hits = state.value?.hits ?? []
@@ -1647,6 +1763,9 @@ window.__ModuleLoader__.load({
         try {
           const result = await postKb(op, body)
           onChanged()
+          // Structural ops invalidate the previewed file — the host panel
+          // backs out of preview (delete/rename/move of the open file).
+          if (op === 'delete' || op === 'rename' || op === 'move') props.onAfterOp?.(op)
           if (message) onClose(message)
           else onClose()
           void result
@@ -1659,6 +1778,8 @@ window.__ModuleLoader__.load({
         role: 'menuitem', onClick, disabled: options.disabled === true,
       }, icon, h('span', { style: { flex: 1 } }, label))
       if (mode === 'delete') {
+        // Soft delete: confirm, then capture the trash path so the panel can
+        // offer a toast-level Undo (restoreTrash).
         return h(Popup, { anchor: props.anchor, onClose },
           h('div', { className: 'kb-pop-confirm' },
             h('h4', { className: 'kb-pop-form-title' }, t('confirmDeleteTitle')),
@@ -1667,7 +1788,18 @@ window.__ModuleLoader__.load({
               h('button', { className: 'kb-btn', onClick: onClose }, t('cancel')),
               h('button', {
                 className: 'kb-btn kb-btn-primary', style: { background: 'var(--dsw-alias-state-error-primary)' }, autoFocus: true,
-                onClick: () => { void run('delete', { path }, t('deleted', { path })) },
+                onClick: () => {
+                  void (async () => {
+                    try {
+                      const result = await postKb('delete', { path })
+                      onChanged()
+                      props.onDeleteDone?.({ trashPath: result.trashPath, originalPath: path })
+                      onClose()
+                    } catch (error) {
+                      onClose(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`)
+                    }
+                  })()
+                },
               }, t('confirm')))))
       }
       if (mode === 'rename') {
@@ -1710,7 +1842,12 @@ window.__ModuleLoader__.load({
       const parent = path.includes('/') ? `${path.slice(0, path.lastIndexOf('/'))}/` : ''
       return h(Popup, { anchor: props.anchor, onClose },
         item(Icon.task(), t('addToTask'), () => setMode('task')),
-        item(Icon.rename(), t('rename'), () => setMode('rename')),
+        // Inline rename lives in the tree row itself; fall back to the popup
+        // form only when the host (e.g. preview toolbar menu) has no row.
+        item(Icon.rename(), t('rename'), () => {
+          if (props.onInlineRename) { props.onClose(); props.onInlineRename() }
+          else setMode('rename')
+        }),
         kind !== 'folder' && item(Icon.copy(), t('copyLink'), () => {
           const link = `${document.baseURI}#kb=${encodeURIComponent(`${sourceId}/${path}`)}`
           void navigator.clipboard?.writeText(link).then(() => onClose(t('copied')), () => onClose(t('copied')))
@@ -1837,17 +1974,43 @@ window.__ModuleLoader__.load({
       const [mode, setMode] = React.useState('browse')
       const [searchQuery, setSearchQuery] = React.useState('')
       const [searchTick, setSearchTick] = React.useState(0)
+      const [searchResult, setSearchResult] = React.useState(undefined)
+      // Debounced instant search: typing in the box runs after 300ms idle;
+      // Enter still fires immediately (timer cleared).
+      const searchDebounce = React.useRef(undefined)
+      React.useEffect(() => () => clearTimeout(searchDebounce.current), [])
+      const queueSearch = () => {
+        clearTimeout(searchDebounce.current)
+        searchDebounce.current = setTimeout(() => {
+          setMode('search')
+          setSearchTick(tick => tick + 1)
+        }, 300)
+      }
       const [toast, setToast] = React.useState(undefined)
       const [newOpen, setNewOpen] = React.useState(false)
       const [newAnchor, setNewAnchor] = React.useState(undefined)
       const [sideWidth, setSideWidth] = React.useState(240)
       const [draggingSide, setDraggingSide] = React.useState(false)
+      // Breadcrumb "open folder" request: {sourceId, dirPath, tick} — the tree
+      // auto-expands the directory chain once per tick.
+      const [reveal, setReveal] = React.useState(undefined)
       const toastTimer = React.useRef(undefined)
       React.useEffect(() => () => clearTimeout(toastTimer.current), [])
-      const showToast = (text, isError) => {
+      const showToast = (text, isError, action) => {
         clearTimeout(toastTimer.current)
-        setToast({ text, isError })
-        toastTimer.current = setTimeout(() => setToast(undefined), 2600)
+        setToast({ text, isError, action })
+        toastTimer.current = setTimeout(() => setToast(undefined), action ? 6000 : 2600)
+      }
+      // Soft-delete undo: toast with an action button restores the entry.
+      const handleDeleteDone = ({ trashPath, originalPath }) => {
+        showToast(t('trashDeleted'), false, {
+          label: t('undo'),
+          onClick: () => {
+            void postKb('restoreTrash', { trashPath, originalPath })
+              .then(() => { refreshTree(); showToast(t('trashRestored')) })
+              .catch((error) => showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true))
+          },
+        })
       }
       const reloadSources = () => { sourcesState.reload() }
       const refreshTree = () => { treeBus.publish() }
@@ -1929,14 +2092,30 @@ window.__ModuleLoader__.load({
       const browseMain = selected === undefined
         ? h('div', { className: 'kb-hint' }, t('noSources'))
         : effectiveMode === 'search'
-          ? h(SearchView, { source: selected, query: searchQuery, runTick: searchTick, onOpenHit: (path) => { setActiveFile({ sourceId: selected.id, path, name: path.split('/').pop(), kind: 'file' }); setMode('browse') } })
+          ? h(SearchView, { source: selected, query: searchQuery, runTick: searchTick, result: searchResult, onResult: setSearchResult, onOpenHit: (path) => { setActiveFile({ sourceId: selected.id, path, name: path.split('/').pop(), kind: 'file' }); setMode('browse') } })
           : activeFile !== undefined && activeFile.kind === 'file'
             ? h(Preview, {
               // Key by path: switching files remounts Preview so the 预览/代码
               // view state resets to the new file type's default.
               key: `${activeFile.sourceId ?? selected.id}/${activeFile.path}`,
               sourceId: activeFile.sourceId ?? selected.id, path: activeFile.path,
+              sourceName: selected.name,
               onBack: () => setActiveFile(undefined),
+              onOpenDir: (dirPath) => { setActiveFile(undefined); setReveal({ sourceId: selected.id, dirPath, tick: Date.now() }) },
+              onToast: showToast,
+              onDeleteDone: handleDeleteDone,
+              onChanged: refreshTree,
+              openSession: props.openSession,
+              startSession: props.startSession,
+              readSourceRoot: async (sid) => {
+                const src = sources.find((item) => item.id === sid)
+                return src?.rootPath ?? src?.path ?? ''
+              },
+              onAfterOp: (op) => {
+                // The open file was deleted/renamed/moved — leave preview and
+                // let the tree refresh (already triggered via onChanged).
+                if (op === 'delete' || op === 'rename' || op === 'move') setActiveFile(undefined)
+              },
               onWiki: (targetName) => {
                 // Wikilink: resolve the target inside the active file's folder chain.
                 const dir = activeFile.path.includes('/') ? activeFile.path.slice(0, activeFile.path.lastIndexOf('/') + 1) : ''
@@ -1966,10 +2145,10 @@ window.__ModuleLoader__.load({
             Icon.searchGlyph(14),
             h('input', {
               value: searchQuery, placeholder: t('searchPlaceholder'), 'aria-label': t('search'),
-              onChange: (event) => setSearchQuery(event.target.value),
-              onKeyDown: (event) => { if (event.key === 'Enter') { setMode('search'); setSearchTick(tick => tick + 1) } },
+              onChange: (event) => { setSearchQuery(event.target.value); if (event.target.value.trim().length > 0) queueSearch() },
+              onKeyDown: (event) => { if (event.key === 'Enter') { clearTimeout(searchDebounce.current); setMode('search'); setSearchTick(tick => tick + 1) } },
             }),
-            searchQuery.length > 0 && h('button', { className: 'kb-search-clear', 'aria-label': t('clear'), onClick: () => { setSearchQuery(''); if (effectiveMode === 'search') setSearchTick(tick => tick + 1) } }, '×')))
+            searchQuery.length > 0 && h('button', { className: 'kb-search-clear', 'aria-label': t('clear'), onClick: () => { clearTimeout(searchDebounce.current); setSearchQuery(''); if (effectiveMode === 'search') setSearchTick(tick => tick + 1) } }, '×')))
         : undefined
 
       // The sidebar column runs the full page height; the right column holds
@@ -1988,12 +2167,51 @@ window.__ModuleLoader__.load({
               title: source.name,
               onClick: () => { setSelectedId(source.id); setActiveFile(undefined) },
             }, source.name)))),
-        h('div', { className: 'kb-side-scroll', role: 'tree', 'aria-label': selected.name },
+        h('div', { className: 'kb-side-scroll', role: 'tree', 'aria-label': selected.name,
+          // ARIA tree keyboard model: ↑↓ move between visible rows, → expands
+          // (or enters), ← collapses (or exits), Enter opens, Home/End jump.
+          onKeyDown: (event) => {
+            if (!['ArrowDown','ArrowUp','ArrowRight','ArrowLeft','Enter',' ','Home','End'].includes(event.key)) return
+            const rows = [...event.currentTarget.querySelectorAll('.kb-tree-row')]
+            if (rows.length === 0) return
+            const current = document.activeElement?.classList?.contains('kb-tree-row')
+              ? document.activeElement
+              : rows[0]
+            const index = rows.indexOf(current)
+            const step = (next) => { rows[Math.max(0, Math.min(rows.length - 1, next))]?.focus(); event.preventDefault() }
+            const rowState = (row) => ({ isFolder: row.getAttribute('aria-expanded') !== null, open: row.getAttribute('aria-expanded') === 'true' })
+            if (event.key === 'ArrowDown') return step(index + 1)
+            if (event.key === 'ArrowUp') return step(index - 1)
+            if (event.key === 'Home') return step(0)
+            if (event.key === 'End') return step(rows.length - 1)
+            if (event.key === 'ArrowRight') {
+              const { isFolder, open } = rowState(current)
+              if (isFolder && !open) { current.click(); return event.preventDefault() }
+              return step(index + 1)
+            }
+            if (event.key === 'ArrowLeft') {
+              const { isFolder, open } = rowState(current)
+              if (isFolder && open) { current.click(); return event.preventDefault() }
+              return step(index - 1)
+            }
+            if (event.key === 'Enter' || event.key === ' ') { current.click(); return event.preventDefault() }
+          },
+        },
           h(TreeRoot, {
             sourceId: selected.id,
             activePath: activeFile?.path,
+            reveal,
             onOpen: (item) => { if (item.kind === 'file') setActiveFile(item) },
             onChanged: refreshTree,
+            // Inline-rename bookkeeping: keep the open preview on the renamed
+            // file instead of leaving a stale path behind.
+            onRenamed: (oldPath, newPath) => {
+              setActiveFile((file) => file?.path === oldPath
+                ? { ...file, path: newPath, name: newPath.split('/').pop() }
+                : file)
+            },
+            onToast: showToast,
+            onDeleteDone: handleDeleteDone,
             renderMoreMenu: MoreMenu,
             openSession: props.openSession,
             startSession: props.startSession,
@@ -2005,6 +2223,9 @@ window.__ModuleLoader__.load({
           })))
       const dragCol = showSide && h('div', {
         className: 'kb-side-drag', 'data-dragging': draggingSide ? '' : undefined,
+        role: 'separator', 'aria-label': t('resizeSidebar'), 'aria-orientation': 'vertical',
+        title: t('resizeSidebarHint'),
+        onDoubleClick: () => setSideWidth(240),
         onPointerDown: (event) => {
           event.preventDefault()
           const startX = event.clientX
@@ -2060,7 +2281,12 @@ window.__ModuleLoader__.load({
           anchor: newAnchor, onClose: () => setNewOpen(false),
           onCreate: createEntry, onPickFolder: pickUploadFolder,
         }),
-        toast !== undefined && h('div', { className: 'kb-toast', style: toast.isError ? { color: 'var(--dsw-alias-state-error-primary)' } : undefined }, toast.text),
+        toast !== undefined && h('div', { className: 'kb-toast', style: toast.isError ? { color: 'var(--dsw-alias-state-error-primary)' } : undefined },
+          toast.text,
+          toast.action && h('button', {
+            className: 'kb-btn kb-btn-sm', style: { marginLeft: 10 },
+            onClick: () => { clearTimeout(toastTimer.current); setToast(undefined); toast.action.onClick() },
+          }, toast.action.label)),
       )
     }
 
