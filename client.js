@@ -897,7 +897,10 @@ window.__ModuleLoader__.load({
           if (event.key !== 'Escape') return
           if (menuOpen) return
           const active = document.activeElement
-          if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+          // While a preview is open, Esc always returns to the results view —
+          // even if the search box kept focus (clicking a hit doesn't move it).
+          const previewOpen = !!document.querySelector('.kb-toolbar .kb-crumb-path')
+          if (active && !previewOpen && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
           if (document.querySelector('.kb-pop, .kb-modal')) return
           event.preventDefault()
           props.onBack()
@@ -1124,7 +1127,7 @@ window.__ModuleLoader__.load({
               h('div', {
                 key: `${hit.path}:${hit.line}:${index}`,
                 className: 'kb-hit', role: 'button', tabIndex: 0,
-                onClick: () => props.onOpenHit(hit.path),
+                onClick: (event) => { event.currentTarget.focus(); props.onOpenHit(hit.path) },
                 onKeyDown: (event) => {
                   if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); props.onOpenHit(hit.path) }
                 },
@@ -2077,10 +2080,35 @@ window.__ModuleLoader__.load({
       const effectiveView = view ?? (sources.length === 0 ? 'wizard' : 'browse')
       const selected = sources.find((source) => source.id === selectedId) ?? sources[0]
       const wizardBlocked = effectiveView === 'wizard' && canEdit === false
-      const effectiveMode = selected === undefined ? 'browse' : mode
+      // Search-first model: a non-empty query shows the results view; an open
+      // file previews on top of it; clearing the query returns to browse.
+      const effectiveMode = selected === undefined ? 'browse' : (searchQuery.trim().length > 0 ? 'search' : 'browse')
 
       const header = h('div', { className: 'kb-head' },
         h('h1', { className: 'kb-head-title' }, t('panel')),
+        selected !== undefined && h('div', { className: 'kb-search-box', style: { marginLeft: 16, marginRight: -8 } },
+          Icon.searchGlyph(14),
+          h('input', {
+            value: searchQuery, placeholder: t('searchPlaceholder'), 'aria-label': t('search'),
+            onChange: (event) => {
+              const value = event.target.value
+              setSearchQuery(value)
+              if (value.trim().length > 0) queueSearch()
+              else { clearTimeout(searchDebounce.current); setSearchResult(undefined) }
+            },
+            onFocus: () => { if (searchQuery.trim().length > 0) setActiveFile(undefined) },
+            onKeyDown: (event) => {
+              if (event.key === 'Enter') { clearTimeout(searchDebounce.current); setSearchTick(tick => tick + 1) }
+              else if (event.key === 'Escape' && !document.querySelector('.kb-toolbar .kb-crumb-path')) {
+                // Esc in the box exits search — but when a preview is open the
+                // window handler returns to the results instead (guarded).
+                event.stopPropagation()
+                clearTimeout(searchDebounce.current)
+                setSearchQuery(''); setSearchResult(undefined); setActiveFile(undefined)
+              }
+            },
+          }),
+          searchQuery.length > 0 && h('button', { className: 'kb-search-clear', 'aria-label': t('clear'), onClick: () => { clearTimeout(searchDebounce.current); setSearchQuery(''); setSearchResult(undefined) } }, '×')),
         h('div', { className: 'kb-head-space' }),
         h('button', { className: 'kb-btn', onClick: () => { setView('memory'); setFormTarget(undefined) } }, Icon.task(), t('memory')),
         h('button', { className: 'kb-btn', onClick: () => { setView('diag'); setFormTarget(undefined) } }, Icon.gear(), t('diagnostics')),
@@ -2091,10 +2119,8 @@ window.__ModuleLoader__.load({
       // group right) above one bordered rounded surface.
       const browseMain = selected === undefined
         ? h('div', { className: 'kb-hint' }, t('noSources'))
-        : effectiveMode === 'search'
-          ? h(SearchView, { source: selected, query: searchQuery, runTick: searchTick, result: searchResult, onResult: setSearchResult, onOpenHit: (path) => { setActiveFile({ sourceId: selected.id, path, name: path.split('/').pop(), kind: 'file' }); setMode('browse') } })
-          : activeFile !== undefined && activeFile.kind === 'file'
-            ? h(Preview, {
+        : activeFile !== undefined && activeFile.kind === 'file'
+          ? h(Preview, {
               // Key by path: switching files remounts Preview so the 预览/代码
               // view state resets to the new file type's default.
               key: `${activeFile.sourceId ?? selected.id}/${activeFile.path}`,
@@ -2129,27 +2155,13 @@ window.__ModuleLoader__.load({
                 })()
               },
             })
+          : effectiveMode === 'search'
+            ? h(SearchView, { source: selected, query: searchQuery, runTick: searchTick, result: searchResult, onResult: setSearchResult, onOpenHit: (path) => { setActiveFile({ sourceId: selected.id, path, name: path.split('/').pop(), kind: 'file' }) } })
             : h('div', { className: 'kb-surface' },
               h('div', { className: 'kb-empty' },
                 h('div', { className: 'kb-empty-icon' }, Icon.book(28)),
                 h('div', null, `${selected.name} · ${selected.type === 'local' ? t('typeLocal') : t('typeWebdav')}`),
                 h('div', { className: 'kb-empty-desc' }, t('selectHint'))))
-
-      const mainBar = effectiveView === 'browse' && selected !== undefined
-        ? h('div', { className: 'kb-main-bar' },
-          h('div', { className: 'kb-seg', role: 'tablist' },
-            h('button', { className: 'kb-seg-btn', role: 'tab', 'data-active': effectiveMode === 'browse' ? '' : undefined, onClick: () => setMode('browse') }, t('browse')),
-            h('button', { className: 'kb-seg-btn', role: 'tab', 'data-active': effectiveMode === 'search' ? '' : undefined, onClick: () => setMode('search') }, t('search'))),
-          h('div', { className: 'kb-main-bar-space' }),
-          h('div', { className: 'kb-search-box' },
-            Icon.searchGlyph(14),
-            h('input', {
-              value: searchQuery, placeholder: t('searchPlaceholder'), 'aria-label': t('search'),
-              onChange: (event) => { setSearchQuery(event.target.value); if (event.target.value.trim().length > 0) queueSearch() },
-              onKeyDown: (event) => { if (event.key === 'Enter') { clearTimeout(searchDebounce.current); setMode('search'); setSearchTick(tick => tick + 1) } },
-            }),
-            searchQuery.length > 0 && h('button', { className: 'kb-search-clear', 'aria-label': t('clear'), onClick: () => { clearTimeout(searchDebounce.current); setSearchQuery(''); if (effectiveMode === 'search') setSearchTick(tick => tick + 1) } }, '×')))
-        : undefined
 
       // The sidebar column runs the full page height; the right column holds
       // head + toolbar + surface. Selection keeps the tree mounted.
@@ -2270,7 +2282,7 @@ window.__ModuleLoader__.load({
           }))
         : effectiveView === 'diag' ? h(DiagnosticsView, null)
         : effectiveView === 'memory' ? h(MemoryView, { showToast })
-        : h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } }, mainBar, browseMain)
+        : h('div', { className: 'kb-main', style: { padding: '0 14px 14px' } }, browseMain)
 
       return h('div', { className: 'kb-page' },
         h('div', { className: 'kb-page-fill' },
