@@ -1,0 +1,47 @@
+{
+  "name": "dsh-super-kb",
+  "version": "1.1.1",
+  "license": "MIT",
+  "type": "module",
+  "description": "DSH-Super-KB: knowledge-base panel for DeepSeek Harness — browse and preview images, SVG, PDF, audio, video, Office (docx/xlsx/pptx), CSV tables, Canvas boards and text/code from local folders or WebDAV; attach files to sessions; kb_search / kb_read / kb_list agent tools.",
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "knowledge-base",
+    "webdav",
+    "bm25",
+    "rag"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icons.js",
+    "icons/*.png",
+    "docs",
+    "icon.svg",
+    "README.md"
+  ],
+  "dependencies": {
+    "@deepseek-ai/schemastery": "~3.19.0",
+    "@xmldom/xmldom": "0.8.6",
+    "jszip": "^3.10.2",
+    "xlsx": "^0.18.5"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

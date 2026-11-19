@@ -347,7 +347,8 @@ const OFFICE_PAGE_CSS = '<style>' +
   '.kb-slide-no{color:#8a8f98;font-size:12px;margin-bottom:6px;}' +
   '</style>'
 
-/** DOCX (word/document.xml) → simple HTML. Tolerant: bad runs degrade to text. */
+/** DOCX (word/document.xml) → { html, text }: rendered HTML + plain-text
+ * extraction (the 预览/文本 toggle pair). Tolerant: bad runs degrade to text. */
 async function docxToHtml(nodeFs, target) {
   const JSZip = (await import('jszip')).default
   const { DOMParser } = await import('@xmldom/xmldom')
@@ -408,6 +409,20 @@ async function docxToHtml(nodeFs, target) {
     return html + '</table>'
   }
 
+  // Plain-text extraction: paragraphs as lines, tables as tab-separated rows.
+  const paraText = (pEl) => {
+    const parts = []
+    for (const run of Array.from(pEl.getElementsByTagName('w:r'))) {
+      for (const child of Array.from(run.childNodes)) {
+        if (child.nodeName === 'w:t') parts.push(child.textContent ?? '')
+        else if (child.nodeName === 'w:br') parts.push('\n')
+        else if (child.nodeName === 'w:tab') parts.push('\t')
+      }
+    }
+    return parts.join('')
+  }
+  const textLines = []
+
   let html = ''
   // Wrap consecutive <li> into <ul>
   let listOpen = false
@@ -419,16 +434,25 @@ async function docxToHtml(nodeFs, target) {
       if (isLi && !listOpen) { html += '<ul>'; listOpen = true }
       if (!isLi && listOpen) { html += '</ul>'; listOpen = false }
       html += piece
+      const line = paraText(node)
+      if (line.trim().length > 0) textLines.push(line)
     } else if (node.nodeName === 'w:tbl') {
       if (listOpen) { html += '</ul>'; listOpen = false }
       html += tableHtml(node)
+      for (const tr of Array.from(node.getElementsByTagName('w:tr'))) {
+        const cells = Array.from(tr.getElementsByTagName('w:tc'))
+          .map((tc) => Array.from(tc.getElementsByTagName('w:t')).map((t) => t.textContent ?? '').join(''))
+        textLines.push(cells.join('\t'))
+      }
+      textLines.push('')
     }
   }
   if (listOpen) html += '</ul>'
-  return `<!doctype html><html><head><meta charset="utf-8">${OFFICE_PAGE_CSS}</head><body>${html || '<p style="color:#8a8f98">(empty document)</p>'}</body></html>`
+  const htmlDoc = `<!doctype html><html><head><meta charset="utf-8">${OFFICE_PAGE_CSS}</head><body>${html || '<p style="color:#8a8f98">(empty document)</p>'}</body></html>`
+  return { html: htmlDoc, text: textLines.join('\n') }
 }
 
-/** PPTX → slide cards HTML (text content per slide, in slide order). */
+/** PPTX → { html, text }: slide cards + per-slide plain-text extraction. */
 async function pptxToHtml(nodeFs, target) {
   const JSZip = (await import('jszip')).default
   const { DOMParser } = await import('@xmldom/xmldom')
@@ -439,6 +463,7 @@ async function pptxToHtml(nodeFs, target) {
     .sort((a, b) => Number(/slide(\d+)\.xml/.exec(a)?.[1] ?? 0) - Number(/slide(\d+)\.xml/.exec(b)?.[1] ?? 0))
   if (slideFiles.length === 0) throw new Error('pptx: no slides found')
   let html = ''
+  const textLines = []
   for (let i = 0; i < slideFiles.length; i++) {
     const xml = await zip.file(slideFiles[i]).async('string')
     const doc = new DOMParser().parseFromString(xml, 'text/xml')
@@ -450,8 +475,10 @@ async function pptxToHtml(nodeFs, target) {
       ? texts.map((t) => `<p>${escapeHtmlText(t)}</p>`).join('')
       : '<p style="color:#8a8f98">(no text on this slide)</p>'
     html += '</div>'
+    textLines.push(`[Slide ${i + 1}]`, ...texts, '')
   }
-  return `<!doctype html><html><head><meta charset="utf-8">${OFFICE_PAGE_CSS}</head><body>${html}</body></html>`
+  const htmlDoc = `<!doctype html><html><head><meta charset="utf-8">${OFFICE_PAGE_CSS}</head><body>${html}</body></html>`
+  return { html: htmlDoc, text: textLines.join('\n') }
 }
 
 
@@ -737,18 +764,24 @@ async function routeRequest(ctx, request) {
 
     if (officeMime || isCsv) {
       let html = ''
+      let text = ''
       if (ext === '.docx') {
-        html = await docxToHtml(nodeFs, target)
+        const converted = await docxToHtml(nodeFs, target)
+        html = converted.html
+        text = converted.text
       } else if ((ext === '.xlsx' || ext === '.xls') && XLSX) {
         const buffer = await nodeFs.promises.readFile(target)
         const workbook = XLSX.read(buffer, { type: 'buffer' })
         html = '<div style="font-family: monospace; white-space: pre;">'
+        const textParts = []
         workbook.SheetNames.forEach((sheetName, i) => {
           const sheet = workbook.Sheets[sheetName]
           html += `<h3>${escapeHtmlText(sheetName)}</h3>`
           html += XLSX.utils.sheet_to_html(sheet)
+          textParts.push(`### ${sheetName}`, XLSX.utils.sheet_to_csv(sheet), '')
         })
         html += '</div>'
+        text = textParts.join('\n')
       } else if (isCsv) {
         const delimiter = ext === '.tsv' ? '\t' : ','
         const content = await nodeFs.promises.readFile(target, 'utf8')
@@ -776,7 +809,9 @@ async function routeRequest(ctx, request) {
         html += '</table>'
         html += '</div>'
       } else if (ext === '.pptx') {
-        html = await pptxToHtml(nodeFs, target)
+        const converted = await pptxToHtml(nodeFs, target)
+        html = converted.html
+        text = converted.text
       } else {
         // Legacy binary formats (.doc/.ppt): no in-process converter — graceful fallback.
         const kind = ext === '.ppt' ? 'PowerPoint' : 'Word'
@@ -786,8 +821,9 @@ async function routeRequest(ctx, request) {
           <p>${ext === '.ppt' ? '.ppt' : '.doc'} 为旧版二进制格式，暂不支持内嵌预览，建议另存为 .${ext === '.ppt' ? 'pptx' : 'docx'}</p>
           <p>文件: ${escapeHtmlText(nodePath.basename(target))}</p>
         </div>`
+        text = `(${ext === '.ppt' ? '.ppt' : '.doc'} 为旧版二进制格式，无内嵌文本提取)`
       }
-      return okPayload({ data: Buffer.from(html, 'utf8').toString('base64'), mime: 'text/html', size: stat.size, converted: true })
+      return okPayload({ data: Buffer.from(html, 'utf8').toString('base64'), mime: 'text/html', size: stat.size, converted: true, text })
     }
 
     const data = await nodeFs.promises.readFile(target)
@@ -1510,8 +1546,28 @@ function modelSources(sources) {
   })
 }
 
+/**
+ * 把平铺字段表转成标准 JSON Schema。
+ * ctx.tools.register 的 parameters 会原样进入 wire payload；
+ * SCNet 等严格上游要求 { type: 'object', properties, required }，
+ * 平铺格式会导致 400 Invalid request parameters (code 10013)。
+ */
+function toJsonObjectSchema(flat) {
+  if (flat === undefined) return { type: 'object', properties: {} }
+  if (flat.type === 'object' || flat.properties !== undefined) return flat
+  const properties = {}
+  const required = []
+  for (const [name, spec] of Object.entries(flat)) {
+    const { required: isRequired, ...rest } = spec ?? {}
+    properties[name] = rest
+    if (isRequired === true) required.push(name)
+  }
+  return { type: 'object', properties, required }
+}
+
 function registerTools(ctx) {
-  ctx.tools.register({
+  const register = (def) => ctx.tools.register({ ...def, parameters: toJsonObjectSchema(def.parameters) })
+  register({
     name: 'kb_list',
     description: 'List the DSH-Super-KB sources, or list one source\'s folder entries. Read-only.',
     parameters: {
@@ -1531,7 +1587,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'memory_save',
     description: 'Save one memory note into the tiered memory store (global / workspace / session) inside the knowledge base. A similarity gate compares it with existing notes first: when an existing note is similar, the tool returns it and asks you to confirm an update instead of silently creating a duplicate.',
     parameters: {
@@ -1612,7 +1668,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'memory_search',
     description: 'Search the tiered memory store (global, workspace, session, and imported WorkBuddy notes) with BM25 ranking. Superseded notes are hidden by default; contradicting chains are flagged so you can verify the latest value.',
     parameters: {
@@ -1632,7 +1688,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'memory_read',
     description: 'Read one full memory note by absolute path (as returned by memory_search or memory_save).',
     parameters: {
@@ -1647,7 +1703,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'memory_delete',
     description: 'Delete one memory note by absolute path. WorkBuddy-imported notes and snapshots are protected.',
     parameters: {
@@ -1662,7 +1718,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'memory_export',
     description: 'Export memory notes to a folder: either a directory inside a knowledge-base local source, or an absolute local path. Creates a timestamped subfolder; never overwrites existing files.',
     parameters: {
@@ -1715,7 +1771,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'memory_restore',
     description: 'Restore the memory tree from a snapshot created before an import/export/bulk change. Restores nothing by itself: reports which files match the snapshot manifest and which diverged.',
     parameters: {
@@ -1730,7 +1786,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'kb_read',
     description: `Read one text file from a DSH-Super-KB source (local folder or WebDAV). Returns plain text; files above ${bytes(MAX_TEXT_BYTES)} are refused.`,
     parameters: {
@@ -1749,7 +1805,7 @@ function registerTools(ctx) {
     },
   })
 
-  ctx.tools.register({
+  register({
     name: 'kb_search',
     description: 'Search one DSH-Super-KB source (local folder or WebDAV) across text files. Ranked with BM25 (CJK bigrams + word terms); returns path, line number, snippet, and relevance score per hit.',
     parameters: {
@@ -1833,8 +1889,8 @@ function parseMemoryDocument(content) {
   const body = text.slice(end + 4 + lineEnding.length - 1)
   const meta = {}
   for (const line of header.split(/\r?\n/)) {
-    const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
-    if (match === undefined) continue
+    const match = /^([A-Za-z][A-Za-z0-9-]*):\s*(.*)$/.exec(line)
+    if (match === null) continue
     const key = match[1]
     const rawValue = match[2].trim()
     if (rawValue.startsWith('[') && rawValue.endsWith(']')) {
@@ -2350,7 +2406,15 @@ export async function apply(ctx, config) {
       text: ({ scope }) => {
         if (memoryConfig().enabled === false) return ''
         if (ctx.tools.get('memory_search', scope) === undefined) return ''
-        return buildMemoryIndex(ctx, scope?.session?.header?.cwd ?? scope?.cwd)
+        const cwd = scope?.session?.header?.cwd ?? scope?.cwd
+        // 宿主 section API 同步调用 text 并对返回值做字符串插值，
+        // 返回 Promise 会导致 text.indexOf is not a function（会话失败）。
+        // 这里只返回同步缓存；未命中时后台构建，下一轮请求生效。
+        const cacheKey = cwd ?? ''
+        const cached = memoryIndexCache.get(cacheKey)
+        if (cached !== undefined && Date.now() - cached.at < MEMORY_INDEX_TTL_MS) return cached.text
+        void buildMemoryIndex(ctx, cwd).catch(() => {})
+        return ''
       },
     }), 'dsh-super-kb: memory index')
   }

@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "DSH 超级知识库",
+    "description": "浏览并检索知识文件夹：本地目录或 WebDAV 云盘，随时可更改。支持预览、图片/代码预览切换、把文件附加到会话，并提供 kb_search / kb_read / kb_list 工具让智能体直接查询文档。内置三档记忆系统（全局/工作区/会话），支持 memory_save/search/read/delete/export 工具、相似门控与取代链、快照回滚，以及 WorkBuddy 记忆双向桥。",
+    "detail": "docs/DETAIL.zh.md"
+  }
+}

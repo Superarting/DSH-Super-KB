@@ -75,7 +75,7 @@ window.__ModuleLoader__.load({
         newTask: 'New task',
         addFile: 'Add file', localFile: 'Local file…',
         attached: 'Attached {name} to the session', attachFailed: 'Attach failed',
-        rootFolder: 'Source root', moveHere: 'Move here', preview: 'Preview', code: 'Code',
+        rootFolder: 'Source root', moveHere: 'Move here', preview: 'Preview', code: 'Code', textView: 'Text',
         readKbFile: 'Please read the knowledge-base file',
         attachAsPath: 'Attach as path', attachAsFile: 'Attach as file',
         attachAsPathHint: 'Agent reads the original file in place',
@@ -156,7 +156,7 @@ window.__ModuleLoader__.load({
         newTask: '新任务',
         addFile: '添加文件', localFile: '本地文件…',
         attached: '已将 {name} 附加到会话', attachFailed: '附加失败',
-        rootFolder: '来源根目录', moveHere: '移动到此处', preview: '预览', code: '代码',
+        rootFolder: '来源根目录', moveHere: '移动到此处', preview: '预览', code: '代码', textView: '文本',
         readKbFile: '请阅读知识库文件',
         attachAsPath: '以路径引用附加', attachAsFile: '以附件形式附加',
         attachAsPathHint: 'Agent 原地读取知识库原文件',
@@ -820,12 +820,14 @@ window.__ModuleLoader__.load({
         setPdfUrl(undefined)
         return undefined
       }, [kind, state.value])
-      const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' ? 'preview' : 'code')
+      const [view, setView] = React.useState(kind === 'html' || kind === 'svg' || kind === 'csv' || kind === 'office' ? 'preview' : 'code')
       const isMd = /\.(md|markdown)$/i.test(path)
       const name = path.split('/').pop()
-      const toggle = (kind === 'html' || kind === 'svg' || kind === 'code' || kind === 'office' || kind === 'csv') && h('div', { className: 'kb-view-toggle', role: 'tablist' },
+      // Toggle only where the two views genuinely differ. Second-tab label:
+      // 代码 for source (html/svg), 文本 for extracted plain text (office/csv).
+      const toggle = (kind === 'html' || kind === 'svg' || kind === 'office' || kind === 'csv') && h('div', { className: 'kb-view-toggle', role: 'tablist' },
         h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'preview' ? '' : undefined, onClick: () => setView('preview') }, t('preview')),
-        h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'code' ? '' : undefined, onClick: () => setView('code') }, t('code')))
+        h('button', { className: 'kb-seg-btn', style: { height: 22, minWidth: 52 }, role: 'tab', 'data-active': view === 'code' ? '' : undefined, onClick: () => setView('code') }, (kind === 'office' || kind === 'csv') ? t('textView') : t('code')))
       let body = null
       if (state.loading) body = h('div', { className: 'kb-hint' }, t('loading'))
       else if (state.error !== undefined) {
@@ -895,16 +897,25 @@ window.__ModuleLoader__.load({
               style: { width: '100%', height: '100%', border: 0, background: '#fff' },
             }))
         } else if (kind === 'office') {
-          // Office files converted to HTML on the server → srcdoc iframe.
-          body = h('div', { className: 'kb-content', style: { padding: 0 } },
-            h('iframe', {
-              srcdoc: base64ToUtf8(state.value.data ?? ''), title: name,
-              sandbox: 'allow-same-origin',
-              style: { width: '100%', height: '100%', border: 0, background: '#fff' },
-            }))
+          // 预览 = server-converted HTML in a sandboxed srcdoc iframe;
+          // 文本 = plain-text extraction served alongside the conversion.
+          if (view === 'preview') {
+            body = h('div', { className: 'kb-content', style: { padding: 0 } },
+              h('iframe', {
+                srcdoc: base64ToUtf8(state.value.data ?? ''), title: name,
+                sandbox: 'allow-same-origin',
+                style: { width: '100%', height: '100%', border: 0, background: '#fff' },
+              }))
+          } else {
+            body = h('div', { className: 'kb-content', style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', padding: 16 } },
+              state.value.text ?? '')
+          }
         } else if (kind === 'csv') {
-          // CSV/TSV files: parse and render as table
+          // 预览 = parsed table; 文本 = the raw file content.
           const content = state.value.content ?? ''
+          if (view === 'code') {
+            body = h('div', { className: 'kb-content', style: { fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12.5, lineHeight: 1.6, whiteSpace: 'pre-wrap', padding: 16 } }, content)
+          } else {
           const lines = content.split('\n').filter(l => l.trim().length > 0)
           const delimiter = name.toLowerCase().endsWith('.tsv') ? '\t' : ','
           const rows = lines.map(line => line.split(delimiter).map(cell => cell.trim()))
@@ -920,6 +931,7 @@ window.__ModuleLoader__.load({
                 ))
               )
             ))
+          }
         } else {
           const content = state.value.content ?? ''
           const renderAsMd = isMd && !(kind === 'html' || kind === 'svg' || kind === 'code')
