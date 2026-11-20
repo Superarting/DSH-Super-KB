@@ -55,6 +55,8 @@ export const Config = Schema.object({
   guidanceEnabled: Schema.boolean().default(true),
   /** Archive each completed turn's user+assistant messages into <root>/sessions/ as a Markdown card. */
   autoArchiveEnabled: Schema.boolean().default(false),
+  /** Session → source bindings (sessionId → sourceId), persisted with the plugin config. */
+  sessionBindings: Schema.dict(Schema.string()).default({}),
   /** Tiered memory system: global / workspace / session Markdown notes inside the knowledge base. */
   memory: Schema.object({
     enabled: Schema.boolean().default(true),
@@ -728,6 +730,19 @@ async function readSourcesFromConfig(ctx) {
   return raw.map(normalizeSource)
 }
 
+/** Resolve the session-bound source id from the config's sessionBindings map.
+ * Returns undefined when no source is bound to the session (or the bound
+ * source no longer exists). */
+function resolveSessionSource(sessionId) {
+  if (sessionId === undefined || sessionId === null || sessionId === '') return undefined
+  const raw = liveConfig?.sessionBindings
+  if (raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) return undefined
+  const boundId = raw[sessionId]
+  if (typeof boundId !== 'string' || boundId.length === 0) return undefined
+  const sources = Array.isArray(liveConfig?.sources) ? liveConfig.sources : []
+  return sources.some((s) => s.id === boundId) ? boundId : undefined
+}
+
 async function routeRequest(ctx, request) {
   const url = new URL(request.url)
   const op = url.searchParams.get('op')
@@ -971,6 +986,78 @@ async function routeRequest(ctx, request) {
     // Native response: the sandboxed page loads scripts/stylesheets/images
     // directly from this URL (a JSON+base64 wrapper would not execute).
     return new Response(data, { status: 200, headers: { 'content-type': mime, 'cache-control': 'no-store' } })
+  }
+
+  if (op === 'binding') {
+    // Session binding endpoints: op2 = binding_bind / binding_unbind /
+    // binding_list / binding_get. Bindings persist at the config top level
+    // (liveConfig.sessionBindings) through the same configEditor seam the
+    // sources editor uses.
+    const subOp = url.searchParams.get('op2') ?? ''
+    const sourceId = url.searchParams.get('source') ?? ''
+    const targetSessionId = url.searchParams.get('sessionId') ?? ''
+    const editor = ctx.configEditor
+    const currentBindings = () => {
+      const raw = liveConfig?.sessionBindings
+      return raw && typeof raw === 'object' && !Array.isArray(raw) ? { ...raw } : {}
+    }
+
+    if (subOp === 'binding_bind') {
+      if (!targetSessionId || !sourceId) return fail(400, 'bad-body', 'sessionId and sourceId required')
+      const sources = await readSourcesFromConfig(ctx)
+      if (!sources.some((s) => s.id === sourceId)) return fail(404, 'no-source', 'source not found')
+      // Always update the in-memory bindings: the bound source is usable by
+      // kb_* tools for this app run immediately. Persist through configEditor
+      // when the profile allows it (patch-overridden configs refuse the
+      // write; binding then lasts for the session and is re-created on use).
+      const nextBindings = { ...currentBindings(), [targetSessionId]: sourceId }
+      if (liveConfig !== undefined && typeof liveConfig === 'object') liveConfig.sessionBindings = nextBindings
+      let persisted = false
+      if (editor !== undefined && ctx.fiber?.entry !== undefined) {
+        try {
+          await editor.edit(ctx.fiber.entry, (current) => {
+            const next = { ...current, sessionBindings: nextBindings }
+            liveConfig = next
+            return next
+          })
+          persisted = true
+        } catch { /* patch-overridden config: keep in-memory only */ }
+      }
+      return okPayload({ bound: true, sessionId: targetSessionId, sourceId, sourceName: sources.find((s) => s.id === sourceId)?.name, persisted })
+    }
+
+    if (subOp === 'binding_unbind') {
+      if (!targetSessionId) return fail(400, 'bad-body', 'sessionId required')
+      const nextBindings = currentBindings()
+      delete nextBindings[targetSessionId]
+      if (liveConfig !== undefined && typeof liveConfig === 'object') liveConfig.sessionBindings = nextBindings
+      let persisted = false
+      if (editor !== undefined && ctx.fiber?.entry !== undefined) {
+        try {
+          await editor.edit(ctx.fiber.entry, (current) => {
+            const next = { ...current, sessionBindings: nextBindings }
+            liveConfig = next
+            return next
+          })
+          persisted = true
+        } catch { /* in-memory only */ }
+      }
+      return okPayload({ unbound: true, sessionId: targetSessionId, persisted })
+    }
+
+    if (subOp === 'binding_list') {
+      return okPayload({ bindings: currentBindings() })
+    }
+
+    if (subOp === 'binding_get') {
+      if (!targetSessionId) return fail(400, 'bad-body', 'sessionId required')
+      const bindings = currentBindings()
+      const boundId = bindings[targetSessionId] ?? null
+      const sources = await readSourcesFromConfig(ctx)
+      return okPayload({ sessionId: targetSessionId, sourceId: boundId, sourceName: boundId ? sources.find((s) => s.id === boundId)?.name ?? null : null })
+    }
+
+    return fail(400, 'bad-op', `unknown binding op: ${subOp}`)
   }
 
   if (op === 'bytes') {
@@ -1484,10 +1571,7 @@ async function workbuddyExport(ctx, request) {
   for (const item of selected) {
     const read = await readMemoryFile(ctx, item.path)
     if (read.error !== undefined) continue
-    const keywords = Array.isArray(item.keywords) && item.keywords.length > 0 ? item.keywords : tokenize(`${item.title} ${item.summary}`).slice(0, 8)
-    const doc = memoryDocument({ ...read.meta, 'exported-by': 'dsh-super-kb' }, read.body)
-    const lines = doc.split('\n')
-    lines.splice(1, 0, `keywords: ${keywords.join(' ')}`)
+    const doc = shardedDocument({ ...read.meta, 'exported-by': 'dsh-super-kb' }, read.body)
     const safeName = `${item.tier}-${item.file}`.replace(/[^a-zA-Z0-9_.-]/g, '_')
     const target = nodePath.join(targetDir, safeName)
     // Additive only: existing files are never rewritten.
@@ -1500,7 +1584,7 @@ async function workbuddyExport(ctx, request) {
         break
       }
     }
-    await nodeFs.promises.writeFile(finalTarget, lines.join('\n'), { flag: 'wx' })
+    await nodeFs.promises.writeFile(finalTarget, doc, { flag: 'wx' })
     exported.push(nodePath.basename(finalTarget))
   }
   ctx.logger?.info?.(`dsh-super-kb: exported ${exported.length} memories to workbuddy dsh-export`)
@@ -1527,6 +1611,16 @@ async function memoryRoute(ctx, request, op) {
     return okPayload({ memories, root: (await memoryRoot(ctx))?.root })
   }
 
+  if (op === 'memory-search') {
+    const query = url.searchParams.get('query') ?? ''
+    const tier = url.searchParams.get('tier') ?? undefined
+    const includeSuperseded = url.searchParams.get('includeSuperseded') === 'true'
+    const result = await searchMemories(ctx, query, { limit: 20, excludeSuperseded: !includeSuperseded })
+    let hits = result.hits
+    if (tier !== undefined && tier !== 'all') hits = hits.filter(hit => hit.tier === tier)
+    return okPayload({ query, hits, scanned: result.scanned })
+  }
+
   if (op === 'memory-read') {
     const result = await readMemoryFile(ctx, url.searchParams.get('path'))
     if (result.error !== undefined) return fail(404, 'not-found', result.error)
@@ -1543,14 +1637,40 @@ async function memoryRoute(ctx, request, op) {
     const keywords = Array.isArray(body?.keywords) ? body.keywords.map(String) : typeof body?.keywords === 'string' ? body.keywords.split(/[,，;；]/).map(item => item.trim()).filter(Boolean) : []
     const keyForTier = tier === 'workspace' ? String(body?.cwd ?? '') : tier === 'session' ? String(body?.sessionId ?? 'ui-session') : undefined
     if (tier === 'workspace' && keyForTier.length === 0) return fail(400, 'bad-cwd', 'workspace tier needs cwd')
+    // Similarity gate (UI path): probe for a near-duplicate unless the client confirmed.
+    const confirm = body?.confirmUpdate === true
+    const gatePath = typeof body?.updateExistingPath === 'string' && body.updateExistingPath.length > 0 ? body.updateExistingPath : undefined
+    if (!confirm && gatePath === undefined) {
+      const probeQuery = `${title} ${keywords.join(' ')} ${content.slice(0, 400)}`
+      const probe = await searchMemories(ctx, probeQuery, { limit: 3 })
+      const threshold = memoryConfig().similarityThreshold
+      const queryTerms = new Set(tokenize(probeQuery))
+      for (const hit of probe.hits) {
+        const existingDoc = await readMemoryFile(ctx, hit.path)
+        if (existingDoc.error !== undefined) continue
+        const existingTerms = new Set(tokenize(`${existingDoc.meta.title ?? ''} ${(Array.isArray(existingDoc.meta.keywords) ? existingDoc.meta.keywords : []).join(' ')} ${existingDoc.body}`))
+        const overlap = memoryOverlap(queryTerms, existingTerms)
+        if (overlap >= threshold) {
+          return okPayload({
+            saved: false,
+            gate: 'similar-memory-exists',
+            existingPath: hit.path,
+            existingTitle: hit.title,
+            overlap: Math.round(overlap * 100) / 100,
+          })
+        }
+      }
+    }
     const written = await writeMemoryFile(ctx, tier, keyForTier, title, {
       keywords,
       summary: typeof body?.summary === 'string' ? body.summary.slice(0, 200) : content.replace(/\s+/g, ' ').slice(0, 120),
       ...(tier === 'workspace' ? { cwd: keyForTier } : {}),
       ...(tier === 'session' ? { sessionId: keyForTier } : {}),
+      ...(gatePath !== undefined ? { updatedFrom: gatePath } : {}),
     }, content)
+    if (gatePath !== undefined) await markSuperseded(ctx, gatePath, written.relativePath)
     memoryIndexCache.clear()
-    return okPayload({ saved: true, path: written.relativePath, absolutePath: written.absolutePath })
+    return okPayload({ saved: true, path: written.relativePath, absolutePath: written.absolutePath, gate: gatePath !== undefined ? 'updated-existing' : 'created' })
   }
 
   if (op === 'memory-delete' && request.method === 'POST') {
@@ -1609,13 +1729,7 @@ async function memoryRoute(ctx, request, op) {
     for (const item of selected) {
       const read = await readMemoryFile(ctx, item.path)
       if (read.error !== undefined) continue
-      let out = `${memoryDocument(read.meta, read.body)}\n`
-      if (sharded) {
-        const lines = out.split('\n')
-        const keywords = Array.isArray(item.keywords) && item.keywords.length > 0 ? item.keywords : tokenize(`${item.title} ${item.summary}`).slice(0, 8)
-        lines.splice(1, 0, `keywords: ${keywords.join(' ')}`)
-        out = lines.join('\n')
-      }
+      const out = sharded ? `${shardedDocument(read.meta, read.body)}\n` : `${memoryDocument(read.meta, read.body)}\n`
       const safeName = `${item.tier}-${item.file}`.replace(/[^a-zA-Z0-9_.-]/g, '_')
       let target = nodePath.join(targetDir, safeName)
       for (let index = 1; index < 1000; index += 1) {
@@ -1928,14 +2042,7 @@ function registerTools(ctx) {
       for (const item of selected) {
         const read = await readMemoryFile(ctx, item.path)
         if (read.error !== undefined) continue
-        let out = `${memoryDocument(read.meta, read.body)}\n`
-        if (sharded) {
-          // WorkBuddy sharding convention: line 2 is the keywords line.
-          const lines = out.split('\n')
-          const keywords = Array.isArray(item.keywords) && item.keywords.length > 0 ? item.keywords : tokenize(`${item.title} ${item.summary}`).slice(0, 8)
-          lines.splice(1, 0, `keywords: ${keywords.join(' ')}`)
-          out = lines.join('\n')
-        }
+        const out = sharded ? `${shardedDocument(read.meta, read.body)}\n` : `${memoryDocument(read.meta, read.body)}\n`
         const safeName = item.tier === 'session' ? `session-${item.file}` : item.tier === 'workspace' ? `workspace-${item.file}` : item.file
         const outFile = nodePath.join(targetDir, `${safeName.replace(/\.md$/, '')}-${exported}.md`)
         await nodeFs.promises.writeFile(outFile, out, { flag: 'wx' })
@@ -1962,17 +2069,20 @@ function registerTools(ctx) {
 
   register({
     name: 'kb_read',
-    description: `Read one text file from a DSH-Super-KB source (local folder or WebDAV). Returns plain text; files above ${bytes(MAX_TEXT_BYTES)} are refused.`,
+    description: `Read one text file from a DSH-Super-KB source (local folder or WebDAV). Returns plain text; files above ${bytes(MAX_TEXT_BYTES)} are refused. If source is omitted, the current session's bound source is used.`,
     parameters: {
-      source: { type: 'string', required: true, description: 'Source id.' },
+      source: { type: 'string', required: false, description: 'Source id. Omit to use the current session\'s bound source.' },
       path: { type: 'string', required: true, description: 'File path inside the source, relative to its root.' },
     },
     output: { schema: READ_OUTPUT_SCHEMA, render: renderValue },
     isConcurrencySafe: () => true,
-    async execute(args) {
+    async execute(args, exec) {
       const sources = await readSourcesFromConfig(ctx)
-      const source = sources.find(candidate => candidate.id === args.source)
-      if (source === undefined) throw new Error(`knowledge source "${args.source}" is not configured`)
+      const sessionId = exec?.agent?.session?.id
+      const sourceId = args.source ?? resolveSessionSource(sessionId)
+      if (sourceId === undefined) throw new Error('no source given and no source bound to this session (set a default source in the knowledge-base panel)')
+      const source = sources.find(candidate => candidate.id === sourceId)
+      if (source === undefined) throw new Error(`knowledge source "${sourceId}" is not configured`)
       const result = await readFile(ctx, source, args.path)
       if (result.error !== undefined || typeof result.content !== 'string') throw new Error(result.error ?? 'read failed')
       return { path: args.path, size: result.size, content: result.content }
@@ -1981,7 +2091,7 @@ function registerTools(ctx) {
 
   register({
     name: 'kb_search',
-    description: 'Search one DSH-Super-KB source (local folder or WebDAV) across text files. Ranked with BM25 (CJK bigrams + word terms); returns path, line number, snippet, and relevance score per hit.',
+    description: `Search one DSH-Super-KB source (local folder or WebDAV) across text files. Ranked with BM25 (CJK bigrams + word terms); returns path, line number, snippet, and relevance score per hit. If source is omitted, the current session's bound source is used.`,
     parameters: {
       query: { type: 'string', required: true, description: 'Search query; natural-language words or phrases.' },
       source: { type: 'string', description: 'Source id to search; omit to search every configured source.' },
@@ -1990,8 +2100,10 @@ function registerTools(ctx) {
     isConcurrencySafe: () => true,
     async execute(args, exec) {
       const sources = await readSourcesFromConfig(ctx)
-      const targets = args.source === undefined ? sources : sources.filter(candidate => candidate.id === args.source)
-      if (targets.length === 0) throw new Error(args.source === undefined ? 'no knowledge sources configured' : `knowledge source "${args.source}" is not configured`)
+      const sessionId = exec?.agent?.session?.id
+      const sourceId = args.source === undefined ? resolveSessionSource(sessionId) : args.source
+      const targets = sourceId === undefined ? sources : sources.filter(candidate => candidate.id === sourceId)
+      if (targets.length === 0) throw new Error(sourceId === undefined ? 'no knowledge sources configured and no source bound to this session' : `knowledge source "${sourceId}" is not configured`)
       const deadline = Date.now() + SEARCH_BUDGET_MS
       const hits = []
       let scanned = 0
@@ -2002,7 +2114,6 @@ function registerTools(ctx) {
         hits.push(...result.hits)
         scanned += result.scanned
       }
-      void exec
       hits.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       return { query: args.query, hits: hits.slice(0, SEARCH_MAX_HITS), scanned, truncated }
     },
@@ -2109,6 +2220,17 @@ async function memoryTierDir(ctx, tier, sessionId) {
 }
 
 /** Sanitized file name from a memory title. */
+
+/** WorkBuddy sharding convention: keywords on line 2. Skips insertion when the
+ * frontmatter already carries a keywords entry (no duplicate lines). */
+function shardedDocument(meta, body) {
+  const lines = memoryDocument(meta, body).split('\n')
+  if (lines.some(line => /^keywords:/.test(line))) return lines.join('\n')
+  const keywords = Array.isArray(meta.keywords) && meta.keywords.length > 0 ? meta.keywords : tokenize(`${meta.title ?? ''} ${meta.summary ?? ''}`).slice(0, 8)
+  lines.splice(1, 0, `keywords: ${keywords.join(' ')}`)
+  return lines.join('\n')
+}
+
 function memoryFileName(title) {
   const base = String(title ?? '').replace(/[\\/:*?"<>|\s]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
   return `${base || 'memory'}.md`
@@ -2374,7 +2496,7 @@ async function restoreMemorySnapshot(ctx, snapshotName) {
   const nodeFs = (await import('node:fs')).default
   const nodeCrypto = (await import('node:crypto')).default
   const root = nodePath.resolve(resolved.root)
-  const safeName = String(snapshotName ?? '').replace(/[^a-zA-Z0-9-]/g, '')
+  const safeName = String(snapshotName ?? '').replace(/\.json$/i, '').replace(/[^a-zA-Z0-9-]/g, '')
   const snapshotPath = nodePath.join(root, MEMORY_SNAPSHOT_DIR, `${safeName}.json`)
   if (!snapshotPath.startsWith(nodePath.join(root, MEMORY_SNAPSHOT_DIR) + nodePath.sep)) return { error: 'invalid snapshot name' }
   let snapshot

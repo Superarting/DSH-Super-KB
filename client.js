@@ -27,7 +27,7 @@ window.__ModuleLoader__.load({
         urlLabel: 'WebDAV URL', usernameLabel: 'Username', passwordLabel: 'Password',
         basePathLabel: 'Base path (optional)', testConn: 'Test connection', testing: 'Testing…',
         connOk: 'Connection ok ({n} entries)', connFailed: 'Connection failed',
-        saveSource: 'Save source', saving: 'Saving…', cancel: 'Cancel',
+        saveSource: 'Save source', saving: 'Saving…', cancel: 'Cancel', save: 'Save',
         confirmDelete: 'Delete source "{name}"? Its files are not touched.',
         delete: 'Delete', edit: 'Edit', sources: 'Sources', sourcesTitle: 'Knowledge sources',
         addSource: 'Add source', noSources: 'No sources configured yet.',
@@ -78,6 +78,7 @@ window.__ModuleLoader__.load({
         attached: 'Attached {name} to the session', attachFailed: 'Attach failed',
         rootFolder: 'Source root', moveHere: 'Move here', preview: 'Preview', code: 'Code', textView: 'Text',
         resizeSidebar: 'Resize sidebar', resizeSidebarHint: 'Drag to resize · double-click to reset',
+        bindAsDefault: 'Set as default for this session', bindDone: 'Bound to this session',
         scriptsTitle: 'Toggle scripts in this preview',
         readKbFile: 'Please read the knowledge-base file',
         attachAsPath: 'Attach as path', attachAsFile: 'Attach as file',
@@ -99,6 +100,7 @@ window.__ModuleLoader__.load({
         memTitlePlaceholder: 'Title', memKeywordsPlaceholder: 'Keywords (comma separated)',
         memSummaryPlaceholder: 'One-sentence summary', memCwdPlaceholder: 'Workspace absolute path (e.g. /Users/you/project)',
         memSaving: 'Saving…',
+        memSimilarFound: 'A similar memory already exists', memSimilarUpdate: 'Update that note (supersede chain; the old note stays traceable)? OK = update, Cancel = discard',
         wbMissing: 'WorkBuddy not detected (~/.workbuddy does not exist).',
         wbStatus: 'WorkBuddy memory folder', wbMemoryFiles: 'memory files', wbPersonal: 'identity files',
         wbImport: 'Import from WorkBuddy', wbImporting: 'Importing…', wbImportDone: 'Import finished',
@@ -115,7 +117,7 @@ window.__ModuleLoader__.load({
         urlLabel: 'WebDAV 地址', usernameLabel: '用户名', passwordLabel: '密码',
         basePathLabel: '基础路径(可选)', testConn: '测试连接', testing: '测试中…',
         connOk: '连接成功({n} 个条目)', connFailed: '连接失败',
-        saveSource: '保存来源', saving: '保存中…', cancel: '取消',
+        saveSource: '保存来源', saving: '保存中…', cancel: '取消', save: '保存',
         confirmDelete: '删除来源“{name}”?不会改动其文件。',
         delete: '删除', edit: '编辑', sources: '来源', sourcesTitle: '知识来源',
         addSource: '新增来源', noSources: '还没有配置任何来源。',
@@ -162,6 +164,7 @@ window.__ModuleLoader__.load({
         attached: '已将 {name} 附加到会话', attachFailed: '附加失败',
         rootFolder: '来源根目录', moveHere: '移动到此处', preview: '预览', code: '代码', textView: '文本',
         resizeSidebar: '调整侧栏宽度', resizeSidebarHint: '拖动调整宽度 · 双击恢复默认',
+        bindAsDefault: '设为本会话默认来源', bindDone: '已绑定到本会话',
         scriptsTitle: '在此预览中启用/停用脚本',
         readKbFile: '请阅读知识库文件',
         attachAsPath: '以路径引用附加', attachAsFile: '以附件形式附加',
@@ -183,6 +186,7 @@ window.__ModuleLoader__.load({
         memTitlePlaceholder: '标题', memKeywordsPlaceholder: '关键词（逗号分隔）',
         memSummaryPlaceholder: '一句话摘要', memCwdPlaceholder: '工作区绝对路径（如 /Users/you/project）',
         memSaving: '保存中…',
+        memSimilarFound: '已存在相似记忆', memSimilarUpdate: '是否更新该记忆（建立取代链，旧记忆保留可溯）？确认=更新，取消=放弃',
         wbMissing: '未检测到 WorkBuddy（~/.workbuddy 不存在）。',
         wbStatus: 'WorkBuddy 记忆目录', wbMemoryFiles: 'memory 文件', wbPersonal: '身份文件',
         wbImport: '从 WorkBuddy 导入', wbImporting: '导入中…', wbImportDone: '导入完成',
@@ -1252,8 +1256,22 @@ window.__ModuleLoader__.load({
       React.useEffect(() => { void reloadSnapshots(); void reloadWb() }, [reloadSnapshots, reloadWb])
 
       const memories = memState.memories ?? []
-      const visible = query.trim().length > 0
-        ? memories.filter((item) => `${item.title} ${item.keywords.join(' ')} ${item.summary}`.toLowerCase().includes(query.trim().toLowerCase()))
+      // Search: BM25 server-side results replace the list while a query is active
+      // (debounced); empty query returns to the tier listing.
+      const [searchHits, setSearchHits] = React.useState(undefined)
+      React.useEffect(() => {
+        const q = query.trim()
+        if (q.length === 0) { setSearchHits(undefined); return }
+        const timer = setTimeout(() => {
+          api('memory-search', { query: q })
+            .then((data) => setSearchHits(data.hits ?? []))
+            .catch(() => setSearchHits(undefined))
+        }, 250)
+        return () => clearTimeout(timer)
+      }, [query])
+      const searching = searchHits !== undefined
+      const visible = searching
+        ? searchHits.map((hit) => ({ tier: hit.tier, file: hit.path.split('/').pop(), title: hit.title, keywords: hit.keywords ?? [], summary: hit.summary, path: hit.path, size: 0, source: undefined, supersededBy: hit.supersededBy }))
         : memories
       const filtered = tierFilter === 'all' ? visible : visible.filter((item) => item.tier === tierFilter)
       const countByTier = (tier) => memories.filter((item) => item.tier === tier).length
@@ -1267,13 +1285,24 @@ window.__ModuleLoader__.load({
           showToast(`${t('loadFailed')}: ${error instanceof Error ? error.message : ''}`, true)
         }
       }
-      const saveEdit = async (title, keywords, summary, body, tier, cwd) => {
+      const saveEdit = async (title, keywords, summary, body, tier, cwd, confirmUpdate) => {
         try {
-          if (editing?.path !== undefined) {
+          if (editing?.path !== undefined && editing.path !== confirmUpdate) {
             // Rewrite in place through the write path: delete + create keeps meta consistent.
             await postKb('memory-delete', { path: editing.path })
           }
-          await postKb('memory-save', { tier, title, keywords, summary, content: body, cwd })
+          const result = await postKb('memory-save', {
+            tier, title, keywords, summary, content: body, cwd,
+            ...(confirmUpdate !== undefined ? { updateExistingPath: confirmUpdate } : {}),
+          })
+          if (result.saved === false && result.gate === 'similar-memory-exists') {
+            // Similar note exists: ask the user to update it (supersede chain) or force-save as a new note.
+            const message = `${t('memSimilarFound')}: "${result.existingTitle}" (${Math.round(result.overlap * 100)}%)\n${t('memSimilarUpdate')}`
+            if (window.confirm(message)) {
+              return saveEdit(title, keywords, summary, body, tier, cwd, result.existingPath)
+            }
+            return
+          }
           showToast(t('memSavedToast'))
           setEditing(undefined)
           await reload()
@@ -1628,7 +1657,7 @@ window.__ModuleLoader__.load({
 
     // ---------- task attach menu (own component: hooks must not be conditional) ----------
     function TaskAttachMenu(props) {
-      const { sourceId, path, name, anchor, onClose, openSession, startSession, readSourceRoot } = props
+      const { sourceId, path, name, anchor, onClose, onDeleteDone, openSession, startSession, readSourceRoot } = props
       const [sessions, setSessions] = React.useState(() => {
         try { return typeof window.__KB_SESSIONS__ === 'function' ? window.__KB_SESSIONS__().slice(0, 5) : [] }
         catch { return [] }
@@ -1790,7 +1819,7 @@ window.__ModuleLoader__.load({
 
     // ---------- more (file) menu ----------
     function MoreMenu(props) {
-      const { sourceId, path, name, kind, onClose, onChanged } = props
+      const { sourceId, path, name, kind, onClose, onChanged, onDeleteDone } = props
       const [mode, setMode] = React.useState(undefined) // undefined|'rename'|'move'|'task'|'delete'
       const [value, setValue] = React.useState('')
       const run = async (op, body, message) => {
@@ -1871,7 +1900,7 @@ window.__ModuleLoader__.load({
               h('button', { className: 'kb-btn', onClick: onClose }, t('cancel')))))
       }
       if (mode === 'task') {
-        return h(TaskAttachMenu, { sourceId, path, name, anchor: props.anchor, onClose, openSession: props.openSession, startSession: props.startSession, readSourceRoot: props.readSourceRoot })
+        return h(TaskAttachMenu, { sourceId, path, name, anchor: props.anchor, onClose, openSession: props.openSession, startSession: props.startSession, readSourceRoot: props.readSourceRoot, onDeleteDone: props.onDeleteDone })
       }
       const parent = path.includes('/') ? `${path.slice(0, path.lastIndexOf('/'))}/` : ''
       return h(Popup, { anchor: props.anchor, onClose },
@@ -2209,7 +2238,27 @@ window.__ModuleLoader__.load({
               'data-active': source.id === selected.id ? '' : undefined,
               title: source.name,
               onClick: () => { setSelectedId(source.id); setActiveFile(undefined) },
-            }, source.name)))),
+            }, source.name))),
+          sources.length > 0 && h('div', { style: { marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } },
+            h('button', {
+              className: 'kb-src-chip', title: selected.name,
+              onClick: () => { setActiveFile(undefined); setSelectedId(selected.id) },
+            }, h('span', { style: { fontSize: 11, fontWeight: 600 } }, '📎'), h('span', { style: { fontSize: 12 } }, selected.name)),
+            h('button', {
+              className: 'kb-btn kb-btn-sm', style: { fontSize: 11 }, title: t('bindAsDefault'),
+              onClick: async () => {
+                let sid = ''
+                try { sid = (typeof window.__KB_SESSIONS_DIRECT__ === 'function' ? window.__KB_SESSIONS_DIRECT__() : [])[0]?.id ?? '' } catch { sid = '' }
+                if (!sid) { showToast(t('noSessions'), true); return }
+                try {
+                  await api('binding', { op2: 'binding_bind', sessionId: sid, source: selected.id })
+                  showToast(t('bindDone'), false)
+                } catch (error) {
+                  showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+                }
+              },
+            }, t('bindAsDefault'))),
+          ),
         h('div', { className: 'kb-side-scroll', role: 'tree', 'aria-label': selected.name,
           // ARIA tree keyboard model: ↑↓ move between visible rows, → expands
           // (or enters), ← collapses (or exits), Enter opens, Home/End jump.
