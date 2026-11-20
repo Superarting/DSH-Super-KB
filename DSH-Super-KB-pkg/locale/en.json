@@ -1,7 +1,0 @@
-{
-  "meta": {
-    "title": "DSH Super KB",
-    "description": "Browse and search knowledge folders: local directories or WebDAV clouds, configurable any time. Adds preview, image and code preview switching, attach-to-session, plus kb_search, kb_read, and kb_list tools so the agent can look up your documents during conversations. Includes a tiered memory system (global/workspace/session) with memory_save/search/read/delete/export tools, a similarity gate with supersede chains, snapshot rollback, and a two-way WorkBuddy memory bridge.",
-    "detail": "docs/DETAIL.md"
-  }
-}

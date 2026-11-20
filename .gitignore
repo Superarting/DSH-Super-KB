@@ -5,3 +5,4 @@ pnpm-lock.yaml
 # 真实 token / 用户配置不要进仓库
 kb-server/config/
 kb-server/*.local.*
+DSH-Super-KB-pkg/
