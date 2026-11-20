@@ -24,7 +24,7 @@ window.__ModuleLoader__.load({
         typeLocal: 'Local folder', typeLocalDesc: 'A folder on this machine',
         typeWebdav: 'WebDAV cloud', typeWebdavDesc: 'Jianguoyun, Synology, Alist and other WebDAV services',
         typeSelfhost: 'Self-hosted KB', typeSelfhostDesc: 'Your own NAS server (kb-server) — agent can write and publish',
-        siteLabel: 'Site id (e.g. site1-static)', writeToggle: 'Allow agent writes', writeOn: 'Writable', writeOff: 'Read-only', tokenLabel: 'Agent token (optional)', adminTokenLabel: 'Admin token (you keep)', publishConfirm: 'Publish to public web?', publishWarn: 'This makes content publicly accessible. Only proceed with non-sensitive content.',
+        siteLabel: 'Folder / site (select)', sitesLoading: 'Loading folders…', sitesEmpty: 'Enter URL & token first', sitePick: '— choose a folder —', writeToggle: 'Allow agent writes', writeOn: 'Writable', writeOff: 'Read-only', tokenLabel: 'Agent token (optional)', adminTokenLabel: 'Admin token (you keep)', publishConfirm: 'Publish to public web?', publishWarn: 'This makes content publicly accessible. Only proceed with non-sensitive content.',
         pickFolder: 'Choose folder…', pathLabel: 'Folder path', nameLabel: 'Display name',
         urlLabel: 'WebDAV URL', usernameLabel: 'Username', passwordLabel: 'Password',
         basePathLabel: 'Base path (optional)', testConn: 'Test connection', testing: 'Testing…',
@@ -116,7 +116,7 @@ window.__ModuleLoader__.load({
         typeLocal: '本地文件夹', typeLocalDesc: '本机上的一个文件夹',
         typeWebdav: 'WebDAV 云盘', typeWebdavDesc: '坚果云、群晖、Alist 等支持 WebDAV 的网盘',
         typeSelfhost: '自建知识库', typeSelfhostDesc: '你自己的 NAS 服务(kb-server)——Agent 可写入和发布',
-        siteLabel: '站点 ID（如 site1-static）', writeToggle: '允许 Agent 写入', writeOn: '可写', writeOff: '只读', tokenLabel: 'Agent token（可选）', adminTokenLabel: '管理员 token（你自己保管）', publishConfirm: '发布到公网？', publishWarn: '这会让内容可被公开访问。仅发布非敏感内容。',
+        siteLabel: '文件夹 / 站点（选择）', sitesLoading: '加载文件夹中…', sitesEmpty: '请先填 URL 和 token', sitePick: '— 选择文件夹 —', writeToggle: '允许 Agent 写入', writeOn: '可写', writeOff: '只读', tokenLabel: 'Agent token（可选）', adminTokenLabel: '管理员 token（你自己保管）', publishConfirm: '发布到公网？', publishWarn: '这会让内容可被公开访问。仅发布非敏感内容。',
         pickFolder: '选择文件夹…', pathLabel: '文件夹路径', nameLabel: '显示名称',
         urlLabel: 'WebDAV 地址', usernameLabel: '用户名', passwordLabel: '密码',
         basePathLabel: '基础路径(可选)', testConn: '测试连接', testing: '测试中…',
@@ -1482,6 +1482,8 @@ window.__ModuleLoader__.load({
       const [path, setPath] = React.useState(initial.path ?? '')
       const [url, setUrl] = React.useState(initial.url ?? '')
       const [site, setSite] = React.useState(initial.site ?? '')
+      const [siteOptions, setSiteOptions] = React.useState([])
+      const [sitesLoading, setSitesLoading] = React.useState(false)
       const [username, setUsername] = React.useState(initial.username ?? '')
       const [password, setPassword] = React.useState('')
       const [clearPassword, setClearPassword] = React.useState(false)
@@ -1491,6 +1493,20 @@ window.__ModuleLoader__.load({
       const [testResult, setTestResult] = React.useState(undefined)
       const [saving, setSaving] = React.useState(false)
       const [error, setError] = React.useState(undefined)
+      // selfhost: 拉取服务端可用站点（文件夹）供选择
+      React.useEffect(() => {
+        if (type !== 'selfhost' || !url.trim()) { setSiteOptions([]); return }
+        let cancelled = false
+        const timer = setTimeout(async () => {
+          setSitesLoading(true)
+          try {
+            const data = await postKb('sites', { url: url.trim().replace(/\/+$/, ''), token: token.trim() })
+            if (!cancelled) setSiteOptions(Array.isArray(data.sites) ? data.sites : [])
+          } catch { if (!cancelled) setSiteOptions([]) }
+          finally { if (!cancelled) setSitesLoading(false) }
+        }, 500)
+        return () => { cancelled = true; clearTimeout(timer) }
+      }, [type, url, token])
       const pickFolder = async () => {
         try {
           const picked = typeof props.pickDirectory === 'function' ? await props.pickDirectory() : null
@@ -1568,9 +1584,17 @@ window.__ModuleLoader__.load({
             testResult.ok ? t('connOk', { n: testResult.items ?? 0 }) : `${t('connFailed')}: ${testResult.message ?? ''}`)),
         type === 'selfhost' && h(React.Fragment, null,
           h('label', null, t('urlLabel'),
-            h('input', { className: 'kb-input', value: url, placeholder: 'http://192.168.3.38:8001', onChange: (event) => setUrl(event.target.value) })),
+            h('input', { className: 'kb-input', value: url, placeholder: 'http://192.168.1.10:8010', onChange: (event) => setUrl(event.target.value) })),
           h('label', null, t('siteLabel'),
-            h('input', { className: 'kb-input', value: site, placeholder: 'site1-static', onChange: (event) => setSite(event.target.value) })),
+            h('select', {
+              className: 'kb-input', value: site,
+              onChange: (event) => setSite(event.target.value),
+              disabled: sitesLoading || siteOptions.length === 0,
+            },
+              h('option', { value: '' }, sitesLoading ? t('sitesLoading') : (siteOptions.length === 0 ? t('sitesEmpty') : t('sitePick')),),
+              ...siteOptions.map(opt => h('option', { key: opt.id, value: opt.id },
+                `${opt.group === 'personal' ? '👤' : opt.group === 'team' ? '👥' : '🌐'} ${opt.name}${opt.writeEnabled ? ' ✎' : ''}`))
+            )),
           h('label', null, t('tokenLabel'),
             h('input', { className: 'kb-input', type: 'password', value: token, onChange: (event) => setToken(event.target.value), autoComplete: 'off' })),
           h('div', { className: 'kb-status kb-status-warn' }, t('typeSelfhostDesc'))),

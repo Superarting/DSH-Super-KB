@@ -1,0 +1,23 @@
+services:
+  kb-server:
+    build: .
+    # 或直接用镜像（如果你发布了）: image: yourname/dsh-super-kb-server:3
+    container_name: kb-server
+    restart: unless-stopped
+    environment:
+      KB_ROOT: /data
+      KB_PORT: "8787"
+      KB_HOST: "0.0.0.0"
+      # token 不在环境变量设置；首次启动后写在 ./config/sites.json 的 "token" 字段
+    ports:
+      # 对外端口 8010 → 容器 8787，按需改左边
+      - "8010:8787"
+    volumes:
+      # 固定站点目录（可选）：把你的网站目录挂进来，一个挂载=一个来源
+      # - /path/to/your/site:/data/mysite
+      # 动态根（推荐）：挂一个父目录，其下所有一级文件夹自动成为来源
+      #   personal → 站点 id 前缀 @p/    team → 前缀 @t/
+      # - /path/to/personal:/data/roots/personal
+      - /path/to/team:/data/roots/team
+      # 配置持久化（token + 每个站点的写入开关 + 审计日志）
+      - ./config:/data/config

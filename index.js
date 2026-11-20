@@ -213,7 +213,10 @@ async function localRead(source, filePath) {
 // ---------- WebDAV adapter ----------
 
 function webdavUrl(source, relPath) {
-  const base = source.basePath ? `${source.url}/${source.basePath}` : source.url
+  const encodedBase = source.basePath
+    ? '/' + source.basePath.split('/').filter(Boolean).map(encodeURIComponent).join('/')
+    : ''
+  const base = `${source.url}${encodedBase}`
   const cleaned = relPath && relPath !== '.' ? relPath.replace(/^\/+/, '') : ''
   const href = cleaned ? `${base}/${cleaned.split('/').map(encodeURIComponent).join('/')}` : base
   if (cleaned === '' ) return href.endsWith('/') ? href : `${href}/`
@@ -903,8 +906,14 @@ async function routeRequest(ctx, request) {
   if (op === 'sites') {
     const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {}
     const sources = await readSourcesFromConfig(ctx)
-    const source = sources.find(s => s.id === (url.searchParams.get('source') ?? body.source) && s.type === 'selfhost')
-      ?? sources.find(s => s.type === 'selfhost')
+    // 新增来源时表单尚未保存：允许用 body.url/token 临时构造 source 拉取站点
+    let source
+    if (typeof body.url === 'string' && body.url.length > 0) {
+      source = { type: 'selfhost', url: body.url.replace(/\/+$/, ''), token: body.token ?? '' }
+    } else {
+      source = sources.find(s => s.id === (url.searchParams.get('source') ?? body.source) && s.type === 'selfhost')
+        ?? sources.find(s => s.type === 'selfhost')
+    }
     if (source === undefined) return fail(404, 'no-selfhost', 'no selfhost source configured')
     let response
     try { response = await selfhostFetch(source, 'sites') } catch { return fail(502, 'unreachable', 'kb-server unreachable') }
