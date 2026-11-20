@@ -2239,25 +2239,6 @@ window.__ModuleLoader__.load({
               title: source.name,
               onClick: () => { setSelectedId(source.id); setActiveFile(undefined) },
             }, source.name))),
-          sources.length > 0 && h('div', { style: { marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' } },
-            h('button', {
-              className: 'kb-src-chip', title: selected.name,
-              onClick: () => { setActiveFile(undefined); setSelectedId(selected.id) },
-            }, h('span', { style: { fontSize: 11, fontWeight: 600 } }, '📎'), h('span', { style: { fontSize: 12 } }, selected.name)),
-            h('button', {
-              className: 'kb-btn kb-btn-sm', style: { fontSize: 11 }, title: t('bindAsDefault'),
-              onClick: async () => {
-                let sid = ''
-                try { sid = (typeof window.__KB_SESSIONS_DIRECT__ === 'function' ? window.__KB_SESSIONS_DIRECT__() : [])[0]?.id ?? '' } catch { sid = '' }
-                if (!sid) { showToast(t('noSessions'), true); return }
-                try {
-                  await api('binding', { op2: 'binding_bind', sessionId: sid, source: selected.id })
-                  showToast(t('bindDone'), false)
-                } catch (error) {
-                  showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
-                }
-              },
-            }, t('bindAsDefault'))),
           ),
         h('div', { className: 'kb-side-scroll', role: 'tree', 'aria-label': selected.name,
           // ARIA tree keyboard model: ↑↓ move between visible rows, → expands
