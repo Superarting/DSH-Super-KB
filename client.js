@@ -24,7 +24,7 @@ window.__ModuleLoader__.load({
         typeLocal: 'Local folder', typeLocalDesc: 'A folder on this machine',
         typeWebdav: 'WebDAV cloud', typeWebdavDesc: 'Jianguoyun, Synology, Alist and other WebDAV services',
         typeSelfhost: 'Self-hosted KB', typeSelfhostDesc: 'Your own NAS server (kb-server) — agent can write and publish',
-        tokenLabel: 'Agent token', adminTokenLabel: 'Admin token (you keep)', publishConfirm: 'Publish to public web?', publishWarn: 'This makes content publicly accessible. Only proceed with non-sensitive content.',
+        siteLabel: 'Site id (e.g. site1-static)', writeToggle: 'Allow agent writes', writeOn: 'Writable', writeOff: 'Read-only', tokenLabel: 'Agent token (optional)', adminTokenLabel: 'Admin token (you keep)', publishConfirm: 'Publish to public web?', publishWarn: 'This makes content publicly accessible. Only proceed with non-sensitive content.',
         pickFolder: 'Choose folder…', pathLabel: 'Folder path', nameLabel: 'Display name',
         urlLabel: 'WebDAV URL', usernameLabel: 'Username', passwordLabel: 'Password',
         basePathLabel: 'Base path (optional)', testConn: 'Test connection', testing: 'Testing…',
@@ -116,7 +116,7 @@ window.__ModuleLoader__.load({
         typeLocal: '本地文件夹', typeLocalDesc: '本机上的一个文件夹',
         typeWebdav: 'WebDAV 云盘', typeWebdavDesc: '坚果云、群晖、Alist 等支持 WebDAV 的网盘',
         typeSelfhost: '自建知识库', typeSelfhostDesc: '你自己的 NAS 服务(kb-server)——Agent 可写入和发布',
-        tokenLabel: 'Agent token', adminTokenLabel: '管理员 token（你自己保管）', publishConfirm: '发布到公网？', publishWarn: '这会让内容可被公开访问。仅发布非敏感内容。',
+        siteLabel: '站点 ID（如 site1-static）', writeToggle: '允许 Agent 写入', writeOn: '可写', writeOff: '只读', tokenLabel: 'Agent token（可选）', adminTokenLabel: '管理员 token（你自己保管）', publishConfirm: '发布到公网？', publishWarn: '这会让内容可被公开访问。仅发布非敏感内容。',
         pickFolder: '选择文件夹…', pathLabel: '文件夹路径', nameLabel: '显示名称',
         urlLabel: 'WebDAV 地址', usernameLabel: '用户名', passwordLabel: '密码',
         basePathLabel: '基础路径(可选)', testConn: '测试连接', testing: '测试中…',
@@ -1481,6 +1481,7 @@ window.__ModuleLoader__.load({
       const [name, setName] = React.useState(initial.name ?? '')
       const [path, setPath] = React.useState(initial.path ?? '')
       const [url, setUrl] = React.useState(initial.url ?? '')
+      const [site, setSite] = React.useState(initial.site ?? '')
       const [username, setUsername] = React.useState(initial.username ?? '')
       const [password, setPassword] = React.useState('')
       const [clearPassword, setClearPassword] = React.useState(false)
@@ -1502,6 +1503,7 @@ window.__ModuleLoader__.load({
         else if (type === 'selfhost') {
           source.url = url.trim().replace(/\/+$/, '')
           source.token = token.trim()
+          if (site.trim()) source.site = site.trim()
         } else {
           source.url = url.trim().replace(/\/+$/, '')
           if (username.trim()) source.username = username.trim()
@@ -1528,7 +1530,7 @@ window.__ModuleLoader__.load({
         finally { setSaving(false) }
       }
       const valid = type === 'local' ? path.trim().length > 0
-        : type === 'selfhost' ? url.trim().length > 0 && token.trim().length > 0
+        : type === 'selfhost' ? url.trim().length > 0
         : url.trim().length > 0
       return h('div', { className: 'kb-form' },
         h('div', { style: { display: 'flex', gap: 8 } },
@@ -1566,7 +1568,9 @@ window.__ModuleLoader__.load({
             testResult.ok ? t('connOk', { n: testResult.items ?? 0 }) : `${t('connFailed')}: ${testResult.message ?? ''}`)),
         type === 'selfhost' && h(React.Fragment, null,
           h('label', null, t('urlLabel'),
-            h('input', { className: 'kb-input', value: url, placeholder: 'https://superyan.fnos.net', onChange: (event) => setUrl(event.target.value) })),
+            h('input', { className: 'kb-input', value: url, placeholder: 'http://192.168.3.38:8001', onChange: (event) => setUrl(event.target.value) })),
+          h('label', null, t('siteLabel'),
+            h('input', { className: 'kb-input', value: site, placeholder: 'site1-static', onChange: (event) => setSite(event.target.value) })),
           h('label', null, t('tokenLabel'),
             h('input', { className: 'kb-input', type: 'password', value: token, onChange: (event) => setToken(event.target.value), autoComplete: 'off' })),
           h('div', { className: 'kb-status kb-status-warn' }, t('typeSelfhostDesc'))),
@@ -1583,6 +1587,40 @@ window.__ModuleLoader__.load({
       if (status === 'not-folder') return { text: t('statusNotFolder'), cls: 'kb-status-warn' }
       if (status === 'needs-password') return { text: t('statusNeedsPassword'), cls: 'kb-status-warn' }
       return { text: t('statusOk'), cls: 'kb-status-ok' }
+    }
+
+    /** Per-source write switch for a selfhost site. Reads / writes through
+     *  the plugin's sites/siteToggle ops (proxy to kb-server v2). */
+    function SiteWriteToggle(props) {
+      const { source } = props
+      const [enabled, setEnabled] = React.useState(false)
+      const [loading, setLoading] = React.useState(true)
+      const [busy, setBusy] = React.useState(false)
+      const load = React.useCallback(async () => {
+        setLoading(true)
+        try {
+          const data = await postKb('sites', { source: source.id })
+          const row = (data.sites ?? []).find(s => s.id === source.site)
+          setEnabled(row ? row.writeEnabled === true : false)
+        } catch { setEnabled(false) }
+        finally { setLoading(false) }
+      }, [source.id, source.site])
+      React.useEffect(() => { void load() }, [load])
+      const toggle = async () => {
+        setBusy(true)
+        const next = !enabled
+        try {
+          const data = await postKb('siteToggle', { source: source.id, site: source.site, writeEnabled: next })
+          setEnabled(data.writeEnabled === true)
+        } catch { /* keep old state */ }
+        finally { setBusy(false) }
+      }
+      return h('button', {
+        className: `kb-btn kb-btn-sm${enabled ? ' kb-btn-primary' : ''}`,
+        style: { fontSize: 11, minWidth: 76 },
+        title: t('writeToggle'), disabled: loading || busy || !source.site,
+        onClick: toggle,
+      }, busy ? '…' : enabled ? `${t('writeOn')} ✓` : `${t('writeOff')} ○`)
     }
 
     function SourcesView(props) {
@@ -1603,6 +1641,7 @@ window.__ModuleLoader__.load({
                   h('div', { className: 'kb-source-name' }, `${source.name} · ${source.type === 'local' ? t('typeLocal') : source.type === 'selfhost' ? t('typeSelfhost') : t('typeWebdav')}`),
                   h('div', { className: 'kb-source-meta' }, meta)),
                 h('span', { className: `kb-status ${status.cls}` }, status.text),
+                source.type === 'selfhost' && h(SiteWriteToggle, { source }),
                 canEdit && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => onEdit(source) }, t('edit')),
                 canEdit && (confirmingId === source.id
                   ? h('button', {

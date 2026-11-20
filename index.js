@@ -52,6 +52,8 @@ export const Config = Schema.object({
     hasPassword: Schema.boolean(),
     /** selfhost source: the agent token used to call the NAS kb-server API. */
     token: Schema.string(),
+    /** selfhost source: which site (site id) on the kb-server v2 to browse/write. */
+    site: Schema.string(),
   })).default([]),
   /** Inject retrieval guidance at session start so the agent knows when to call kb_search. */
   guidanceEnabled: Schema.boolean().default(true),
@@ -137,7 +139,9 @@ function sourceError(source) {
     } catch {
       return 'invalid selfhost URL'
     }
-    if (typeof source.token !== 'string' || source.token.trim().length === 0) return 'selfhost source needs a token'
+    if (typeof source.token === 'string' && source.token.trim().length > 0) {
+      // token is optional: some selfhost endpoints are open (LAN / reverse proxy).
+    }
     return undefined
   }
   return 'unknown source type'
@@ -159,6 +163,7 @@ function normalizeSource(raw) {
   if (source.type === 'selfhost') {
     source.url = String(raw.url ?? '').replace(/\/+$/, '')
     source.token = String(raw.token ?? '')
+    if (typeof raw.site === 'string' && raw.site.length > 0) source.site = raw.site
   }
   return source
 }
@@ -337,10 +342,15 @@ async function selfhostFetch(source, endpoint, init = {}, timeoutMs = 20000) {
   const href = `${source.url}/kb-api/${endpoint}`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const headers = { ...init.headers }
+  // token is optional: include the auth header only when configured.
+  if (typeof source.token === 'string' && source.token.length > 0) {
+    headers.authorization = `Bearer ${source.token}`
+  }
   try {
     return await fetch(href, {
       ...init,
-      headers: { authorization: `Bearer ${source.token}`, ...init.headers },
+      headers,
       signal: controller.signal,
     })
   } finally {
@@ -357,6 +367,7 @@ async function selfhostManageOp(source, op, request) {
   let body
   try { body = await request.json() } catch { return fail(400, 'bad-body', 'invalid JSON') }
   const payload = { path: body?.path ?? '', op: serverOp }
+  if (source.site) payload.site = source.site
   if (typeof body?.content === 'string') payload.content = body.content
   if (typeof body?.to === 'string') payload.to = body.to
   // createFolder maps to create with a trailing-slash path the server treats as a dir marker
@@ -379,7 +390,9 @@ async function selfhostManageOp(source, op, request) {
 }
 
 async function selfhostList(source, dirPath) {
-  const q = new URLSearchParams({ path: dirPath ?? '' })
+  const params = { path: dirPath ?? '' }
+  if (source.site) params.site = source.site
+  const q = new URLSearchParams(params)
   let response
   try {
     response = await selfhostFetch(source, `tree?${q}`)
@@ -395,7 +408,9 @@ async function selfhostList(source, dirPath) {
 }
 
 async function selfhostRead(source, filePath) {
-  const q = new URLSearchParams({ path: filePath ?? '' })
+  const params = { path: filePath ?? '' }
+  if (source.site) params.site = source.site
+  const q = new URLSearchParams(params)
   let response
   try {
     response = await selfhostFetch(source, `read?${q}`)
@@ -882,6 +897,40 @@ async function routeRequest(ctx, request) {
   }
 
   const allSources = await readSourcesFromConfig(ctx)
+
+  // kb-server v2 multi-site: list sites and toggle a site's write switch.
+  // The `source` query names a selfhost source whose url points at the server.
+  if (op === 'sites') {
+    const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {}
+    const sources = await readSourcesFromConfig(ctx)
+    const source = sources.find(s => s.id === (url.searchParams.get('source') ?? body.source) && s.type === 'selfhost')
+      ?? sources.find(s => s.type === 'selfhost')
+    if (source === undefined) return fail(404, 'no-selfhost', 'no selfhost source configured')
+    let response
+    try { response = await selfhostFetch(source, 'sites') } catch { return fail(502, 'unreachable', 'kb-server unreachable') }
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return fail(422, 'sites-failed', data.error ?? `server ${response.status}`)
+    return okPayload({ sites: data.sites ?? [] })
+  }
+
+  if (op === 'siteToggle' && request.method === 'POST') {
+    const body = await request.json().catch(() => ({}))
+    const sources = await readSourcesFromConfig(ctx)
+    const source = sources.find(s => s.id === body.source && s.type === 'selfhost')
+      ?? sources.find(s => s.type === 'selfhost')
+    if (source === undefined) return fail(404, 'no-selfhost', 'no selfhost source configured')
+    let response
+    try {
+      response = await selfhostFetch(source, 'sites/toggle', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: body.site, writeEnabled: body.writeEnabled === true }),
+      })
+    } catch { return fail(502, 'unreachable', 'kb-server unreachable') }
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return fail(422, 'toggle-failed', data.error ?? `server ${response.status}`)
+    return okPayload({ id: data.id, writeEnabled: data.writeEnabled })
+  }
 
   if (op === 'stats') {
     return okPayload(await gatherStats(ctx, allSources))
@@ -1950,7 +1999,7 @@ function modelSources(sources) {
     const view = { id: source.id, name: source.name, type: source.type }
     if (source.type === 'local') view.path = source.path
     if (source.type === 'webdav') view.basePath = source.basePath ?? ''
-    if (source.type === 'selfhost') view.url = source.url ?? ''
+    if (source.type === 'selfhost') { view.url = source.url ?? ''; view.site = source.site ?? '' }
     return view
   })
 }
@@ -2262,6 +2311,7 @@ function registerTools(ctx) {
       if (source === undefined) throw new Error(`knowledge source "${sourceId}" is not configured`)
       if (source.type !== 'selfhost') throw new Error(`source "${sourceId}" is ${source.type}; only selfhost sources support writing`)
       const body = { path: args.path, content: args.content ?? '', op }
+      if (source.site) body.site = source.site
       if (args.to !== undefined) body.to = args.to
       let response
       try {
