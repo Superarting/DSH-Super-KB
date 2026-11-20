@@ -44,12 +44,14 @@ export const Config = Schema.object({
   sources: Schema.array(Schema.object({
     id: Schema.string().required(),
     name: Schema.string().required(),
-    type: Schema.union(['local', 'webdav']).required(),
+    type: Schema.union(['local', 'webdav', 'selfhost']).required(),
     path: Schema.string(),
     url: Schema.string(),
     username: Schema.string(),
     basePath: Schema.string(),
     hasPassword: Schema.boolean(),
+    /** selfhost source: the agent token used to call the NAS kb-server API. */
+    token: Schema.string(),
   })).default([]),
   /** Inject retrieval guidance at session start so the agent knows when to call kb_search. */
   guidanceEnabled: Schema.boolean().default(true),
@@ -128,6 +130,16 @@ function sourceError(source) {
     }
     return undefined
   }
+  if (source.type === 'selfhost') {
+    try {
+      const url = new URL(source.url)
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return 'selfhost URL must be http(s)'
+    } catch {
+      return 'invalid selfhost URL'
+    }
+    if (typeof source.token !== 'string' || source.token.trim().length === 0) return 'selfhost source needs a token'
+    return undefined
+  }
   return 'unknown source type'
 }
 
@@ -143,6 +155,10 @@ function normalizeSource(raw) {
     if (typeof raw.username === 'string') source.username = raw.username
     if (typeof raw.basePath === 'string' && raw.basePath.length > 0) source.basePath = raw.basePath.replace(/^\/+|\/+$/g, '')
     source.hasPassword = raw.hasPassword === true
+  }
+  if (source.type === 'selfhost') {
+    source.url = String(raw.url ?? '').replace(/\/+$/, '')
+    source.token = String(raw.token ?? '')
   }
   return source
 }
@@ -314,11 +330,95 @@ async function writeSourcePassword(ctx, sourceId, password) {
   await credentials.modifyRecord(`${KB_NS}/${sourceId}`, async () => ({ kind: 'api-key', key: password }))
 }
 
+// ---------- selfhost adapter (NAS kb-server) ----------
+
+/** Call the NAS kb-server HTTP API. All requests carry the source's agent token. */
+async function selfhostFetch(source, endpoint, init = {}, timeoutMs = 20000) {
+  const href = `${source.url}/kb-api/${endpoint}`
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    return await fetch(href, {
+      ...init,
+      headers: { authorization: `Bearer ${source.token}`, ...init.headers },
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Forward a file-management POST op to the kb-server write API.
+ * The server re-checks permissions; this function just maps op names. */
+async function selfhostManageOp(source, op, request) {
+  const opMap = { create: 'create', write: 'write', rename: 'rename', move: 'move', delete: 'delete' }
+  const serverOp = opMap[op]
+  if (serverOp === undefined) return fail(400, 'bad-op', `op ${op} is not supported for selfhost sources`)
+  let body
+  try { body = await request.json() } catch { return fail(400, 'bad-body', 'invalid JSON') }
+  const payload = { path: body?.path ?? '', op: serverOp }
+  if (typeof body?.content === 'string') payload.content = body.content
+  if (typeof body?.to === 'string') payload.to = body.to
+  // createFolder maps to create with a trailing-slash path the server treats as a dir marker
+  let response
+  try {
+    response = await selfhostFetch(source, 'write', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+  } catch {
+    return fail(502, 'server-unreachable', 'kb-server unreachable')
+  }
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok || data.ok === false) {
+    return fail(403, data.error ?? 'denied', data.reason ?? `kb-server error ${response.status}`)
+  }
+  searchIndex.delete(indexKey(source))
+  return okPayload({ saved: true, path: data.path ?? payload.path, bytes: data.bytes ?? 0 })
+}
+
+async function selfhostList(source, dirPath) {
+  const q = new URLSearchParams({ path: dirPath ?? '' })
+  let response
+  try {
+    response = await selfhostFetch(source, `tree?${q}`)
+  } catch {
+    return { error: 'kb-server unreachable' }
+  }
+  if (!response.ok) {
+    if (response.status === 401) return { error: 'kb-server token invalid' }
+    return { error: `kb-server error ${response.status}` }
+  }
+  const data = await response.json()
+  return { items: Array.isArray(data.items) ? data.items : [] }
+}
+
+async function selfhostRead(source, filePath) {
+  const q = new URLSearchParams({ path: filePath ?? '' })
+  let response
+  try {
+    response = await selfhostFetch(source, `read?${q}`)
+  } catch {
+    return { error: 'kb-server unreachable' }
+  }
+  if (!response.ok) {
+    if (response.status === 401) return { error: 'kb-server token invalid' }
+    if (response.status === 404) return { error: 'file not found' }
+    return { error: `kb-server error ${response.status}` }
+  }
+  const data = await response.json()
+  const content = typeof data.content === 'string' ? data.content : ''
+  return { content, size: Buffer.byteLength(content) }
+}
+
 // ---------- source facade ----------
 
 async function listDir(ctx, source, dirPath) {
   try {
-    return source.type === 'local' ? await localList(ctx, source, dirPath) : await webdavList(ctx, source, dirPath)
+    if (source.type === 'local') return await localList(ctx, source, dirPath)
+    if (source.type === 'selfhost') return await selfhostList(source, dirPath)
+    return await webdavList(ctx, source, dirPath)
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'read failed' }
   }
@@ -326,7 +426,9 @@ async function listDir(ctx, source, dirPath) {
 
 async function readFile(ctx, source, filePath) {
   try {
-    return source.type === 'local' ? await localRead(source, filePath) : await webdavRead(ctx, source, filePath)
+    if (source.type === 'local') return await localRead(source, filePath)
+    if (source.type === 'selfhost') return await selfhostRead(source, filePath)
+    return await webdavRead(ctx, source, filePath)
   } catch (error) {
     return { error: error instanceof Error ? error.message : 'read failed' }
   }
@@ -582,6 +684,17 @@ async function* walkWebdav(ctx, source, dirPath = '', depth = 0) {
   }
 }
 
+async function* walkSelfhost(source, dirPath = '', depth = 0) {
+  if (depth > 8) return
+  const listing = await selfhostList(source, dirPath)
+  if (listing.error !== undefined) return
+  for (const item of listing.items ?? []) {
+    const rel = dirPath ? `${dirPath}/${item.name}` : item.name
+    if (item.kind === 'folder') yield* walkSelfhost(source, rel, depth + 1)
+    else if (item.kind === 'file') yield rel
+  }
+}
+
 /** Split one query into terms: CJK bigrams + latin/number words, lowercased. */
 function tokenize(text) {
   const terms = []
@@ -596,7 +709,9 @@ function tokenize(text) {
 }
 
 function indexKey(source) {
-  return source.type === 'local' ? `local:${source.path}` : `webdav:${source.url}/${source.basePath ?? ''}`
+  if (source.type === 'local') return `local:${source.path}`
+  if (source.type === 'selfhost') return `selfhost:${source.url}`
+  return `webdav:${source.url}/${source.basePath ?? ''}`
 }
 
 /** In-memory BM25 stats over one source; TTL-invalidated (30s) so edits surface quickly. */
@@ -606,7 +721,9 @@ async function bm25Stats(ctx, source, deadline) {
   if (cached !== undefined && Date.now() - cached.builtAt < INDEX_TTL_MS) return cached
   const docs = new Map()
   const df = new Map()
-  const walker = source.type === 'local' ? walkLocal(source) : walkWebdav(ctx, source)
+  const walker = source.type === 'local' ? walkLocal(source)
+    : source.type === 'selfhost' ? walkSelfhost(source)
+    : walkWebdav(ctx, source)
   let totalLen = 0
   let scanned = 0
   for await (const filePath of walker) {
@@ -1088,9 +1205,10 @@ async function routeRequest(ctx, request) {
     return okPayload({ hits: hits.slice(0, SEARCH_MAX_HITS), scanned: scannedTotal, truncated: Date.now() > deadline })
   }
 
-  // File management ops (local sources only; WebDAV stays read-only). Each
-  // resolves the target inside the source root before touching the disk.
+  // File management ops. selfhost sources forward to their kb-server API
+  // (which enforces permissions); local uses filesystem; WebDAV stays read-only.
   if (request.method === 'POST') {
+    if (source.type === 'selfhost') return selfhostManageOp(source, op, request)
     return fileManageOp(ctx, source, op, request)
   }
 
@@ -1111,7 +1229,9 @@ async function gatherStats(ctx, sources) {
       else if (!stat.isDirectory()) entry.status = 'not-folder'
     }
     if (entry.status === 'ok') {
-      const walker = source.type === 'local' ? walkLocal(source) : walkWebdav(ctx, source)
+      const walker = source.type === 'local' ? walkLocal(source)
+        : source.type === 'selfhost' ? walkSelfhost(source)
+        : walkWebdav(ctx, source)
       for await (const filePath of walker) {
         if (Date.now() > deadline) { entry.status = 'partial'; break }
         entry.files += 1
@@ -1830,6 +1950,7 @@ function modelSources(sources) {
     const view = { id: source.id, name: source.name, type: source.type }
     if (source.type === 'local') view.path = source.path
     if (source.type === 'webdav') view.basePath = source.basePath ?? ''
+    if (source.type === 'selfhost') view.url = source.url ?? ''
     return view
   })
 }
@@ -2116,6 +2237,90 @@ function registerTools(ctx) {
       }
       hits.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
       return { query: args.query, hits: hits.slice(0, SEARCH_MAX_HITS), scanned, truncated }
+    },
+  })
+
+  register({
+    name: 'kb_write',
+    description: `Write or create a text file in a selfhost (NAS kb-server) knowledge source. The server enforces per-folder permissions the human configured — a write to a locked folder is refused with the reason. Only selfhost sources support writing; local/WebDAV are read-only here. If source is omitted, the current session's bound source is used.`,
+    parameters: {
+      source: { type: 'string', required: false, description: 'Selfhost source id. Omit to use the current session\'s bound source.' },
+      path: { type: 'string', required: true, description: 'File path inside the source, relative to its root (e.g. "草稿/note.md").' },
+      content: { type: 'string', required: true, description: 'Text content to write.' },
+      op: { type: 'string', required: false, description: 'create | write | rename | move | delete. Defaults to write. Allowed ops depend on the folder rules.' },
+      to: { type: 'string', required: false, description: 'Target path for rename/move.' },
+    },
+    output: { schema: { type: 'object', properties: {} }, render: renderValue },
+    isConcurrencySafe: () => false,
+    async execute(args) {
+      const allowed = ['create', 'write', 'rename', 'move', 'delete']
+      const op = allowed.includes(args.op) ? args.op : 'write'
+      const sources = await readSourcesFromConfig(ctx)
+      const sourceId = args.source
+      if (sourceId === undefined) throw new Error('no source given — pass source=<selfhost source id>')
+      const source = sources.find(candidate => candidate.id === sourceId)
+      if (source === undefined) throw new Error(`knowledge source "${sourceId}" is not configured`)
+      if (source.type !== 'selfhost') throw new Error(`source "${sourceId}" is ${source.type}; only selfhost sources support writing`)
+      const body = { path: args.path, content: args.content ?? '', op }
+      if (args.to !== undefined) body.to = args.to
+      let response
+      try {
+        response = await selfhostFetch(source, 'write', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+      } catch {
+        throw new Error('kb-server unreachable')
+      }
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.ok === false) {
+        const reason = data.reason ?? data.error ?? `server error ${response.status}`
+        throw new Error(`write refused: ${reason}`)
+      }
+      return { ok: true, path: data.path ?? args.path, op, bytes: data.bytes ?? 0 }
+    },
+  })
+
+  register({
+    name: 'kb_publish',
+    description: `Publish content from the private area to a public web page on the NAS, returning an externally reachable URL. IMPORTANT: publishing makes content publicly accessible — the human must confirm by passing confirm:true AND the admin token (adminToken) they hold. Without both, the call is refused. This is a deliberate safety gate; never publish private or sensitive material.`,
+    parameters: {
+      source: { type: 'string', required: true, description: 'Selfhost source id that hosts the publish endpoint.' },
+      slug: { type: 'string', required: true, description: 'URL slug for the published page (e.g. "weekly-report").' },
+      files: { type: 'string', required: true, description: 'JSON array of files, each {as:"index.html", content:"..."} or {as:"data.csv", path:"草稿/data.csv"}.' },
+      mode: { type: 'string', required: false, description: 'site (web page) or share (file link). Defaults to site.' },
+      confirm: { type: 'boolean', required: false, description: 'Must be true — human confirmed publishing to public.' },
+      adminToken: { type: 'string', required: false, description: 'The admin token the human holds. Required to authorize publishing.' },
+    },
+    output: { schema: { type: 'object', properties: {} }, render: renderValue },
+    isConcurrencySafe: () => false,
+    async execute(args) {
+      if (args.confirm !== true) throw new Error('publish requires confirm:true — the human must explicitly approve making this content public')
+      if (typeof args.adminToken !== 'string' || args.adminToken.length === 0) throw new Error('publish requires adminToken (the token the human holds)')
+      const sources = await readSourcesFromConfig(ctx)
+      const source = sources.find(candidate => candidate.id === args.source)
+      if (source === undefined) throw new Error(`knowledge source "${args.source}" is not configured`)
+      if (source.type !== 'selfhost') throw new Error(`source "${args.source}" is ${source.type}; publishing needs a selfhost source`)
+      let files
+      try { files = JSON.parse(args.files) } catch { throw new Error('files must be a JSON array') }
+      if (!Array.isArray(files)) throw new Error('files must be a JSON array')
+      let response
+      try {
+        response = await fetch(`${source.url}/kb-api/publish`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${args.adminToken}` },
+          body: JSON.stringify({ slug: args.slug, files, mode: args.mode ?? 'site' }),
+          signal: AbortSignal.timeout(20000),
+        })
+      } catch {
+        throw new Error('kb-server unreachable')
+      }
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.ok === false) {
+        throw new Error(`publish refused: ${data.error ?? data.message ?? `server error ${response.status}`}`)
+      }
+      return { ok: true, slug: data.slug ?? args.slug, url: data.url, mode: data.mode ?? args.mode ?? 'site' }
     },
   })
 }

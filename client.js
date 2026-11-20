@@ -23,6 +23,8 @@ window.__ModuleLoader__.load({
         wizardIntro: 'Choose where your documents live. You can add more sources or change them any time.',
         typeLocal: 'Local folder', typeLocalDesc: 'A folder on this machine',
         typeWebdav: 'WebDAV cloud', typeWebdavDesc: 'Jianguoyun, Synology, Alist and other WebDAV services',
+        typeSelfhost: 'Self-hosted KB', typeSelfhostDesc: 'Your own NAS server (kb-server) — agent can write and publish',
+        tokenLabel: 'Agent token', adminTokenLabel: 'Admin token (you keep)', publishConfirm: 'Publish to public web?', publishWarn: 'This makes content publicly accessible. Only proceed with non-sensitive content.',
         pickFolder: 'Choose folder…', pathLabel: 'Folder path', nameLabel: 'Display name',
         urlLabel: 'WebDAV URL', usernameLabel: 'Username', passwordLabel: 'Password',
         basePathLabel: 'Base path (optional)', testConn: 'Test connection', testing: 'Testing…',
@@ -113,6 +115,8 @@ window.__ModuleLoader__.load({
         wizardIntro: '选择文档存放位置。之后可以随时新增或修改来源。',
         typeLocal: '本地文件夹', typeLocalDesc: '本机上的一个文件夹',
         typeWebdav: 'WebDAV 云盘', typeWebdavDesc: '坚果云、群晖、Alist 等支持 WebDAV 的网盘',
+        typeSelfhost: '自建知识库', typeSelfhostDesc: '你自己的 NAS 服务(kb-server)——Agent 可写入和发布',
+        tokenLabel: 'Agent token', adminTokenLabel: '管理员 token（你自己保管）', publishConfirm: '发布到公网？', publishWarn: '这会让内容可被公开访问。仅发布非敏感内容。',
         pickFolder: '选择文件夹…', pathLabel: '文件夹路径', nameLabel: '显示名称',
         urlLabel: 'WebDAV 地址', usernameLabel: '用户名', passwordLabel: '密码',
         basePathLabel: '基础路径(可选)', testConn: '测试连接', testing: '测试中…',
@@ -1481,6 +1485,7 @@ window.__ModuleLoader__.load({
       const [password, setPassword] = React.useState('')
       const [clearPassword, setClearPassword] = React.useState(false)
       const [basePath, setBasePath] = React.useState(initial.basePath ?? '')
+      const [token, setToken] = React.useState(initial.token ?? '')
       const [testing, setTesting] = React.useState(false)
       const [testResult, setTestResult] = React.useState(undefined)
       const [saving, setSaving] = React.useState(false)
@@ -1494,7 +1499,10 @@ window.__ModuleLoader__.load({
       const buildSource = () => {
         const source = { id: initial.id, name: name.trim() || (type === 'local' ? path.split('/').pop() || 'Folder' : new URL(url).hostname), type }
         if (type === 'local') source.path = path.trim()
-        else {
+        else if (type === 'selfhost') {
+          source.url = url.trim().replace(/\/+$/, '')
+          source.token = token.trim()
+        } else {
           source.url = url.trim().replace(/\/+$/, '')
           if (username.trim()) source.username = username.trim()
           if (basePath.trim()) source.basePath = basePath.trim()
@@ -1519,7 +1527,9 @@ window.__ModuleLoader__.load({
         catch (saveError) { setError(saveError instanceof Error ? saveError.message : String(saveError)) }
         finally { setSaving(false) }
       }
-      const valid = type === 'local' ? path.trim().length > 0 : url.trim().length > 0
+      const valid = type === 'local' ? path.trim().length > 0
+        : type === 'selfhost' ? url.trim().length > 0 && token.trim().length > 0
+        : url.trim().length > 0
       return h('div', { className: 'kb-form' },
         h('div', { style: { display: 'flex', gap: 8 } },
           h('div', { className: `kb-type-row${type === 'local' ? ' kb-type-row-selected' : ''}`, style: { flex: 1 }, onClick: () => setType('local'), role: 'radio', 'aria-checked': type === 'local' },
@@ -1527,7 +1537,10 @@ window.__ModuleLoader__.load({
             h('span', { className: 'kb-type-desc' }, t('typeLocalDesc'))),
           h('div', { className: `kb-type-row${type === 'webdav' ? ' kb-type-row-selected' : ''}`, style: { flex: 1 }, onClick: () => setType('webdav'), role: 'radio', 'aria-checked': type === 'webdav' },
             h('span', { className: 'kb-type-name' }, t('typeWebdav')),
-            h('span', { className: 'kb-type-desc' }, t('typeWebdavDesc')))),
+            h('span', { className: 'kb-type-desc' }, t('typeWebdavDesc'))),
+          h('div', { className: `kb-type-row${type === 'selfhost' ? ' kb-type-row-selected' : ''}`, style: { flex: 1 }, onClick: () => setType('selfhost'), role: 'radio', 'aria-checked': type === 'selfhost' },
+            h('span', { className: 'kb-type-name' }, t('typeSelfhost')),
+            h('span', { className: 'kb-type-desc' }, t('typeSelfhostDesc')))),
         h('label', null, t('nameLabel'),
           h('input', { className: 'kb-input', value: name, placeholder: t('namePlaceholder'), onChange: (event) => setName(event.target.value) })),
         type === 'local' && h('label', null, t('pathLabel'),
@@ -1551,6 +1564,12 @@ window.__ModuleLoader__.load({
           h('button', { className: 'kb-btn', onClick: runTest, disabled: testing || !valid }, testing ? t('testing') : t('testConn')),
           testResult !== undefined && h('span', { className: `kb-status ${testResult.ok ? 'kb-status-ok' : 'kb-status-error'}` },
             testResult.ok ? t('connOk', { n: testResult.items ?? 0 }) : `${t('connFailed')}: ${testResult.message ?? ''}`)),
+        type === 'selfhost' && h(React.Fragment, null,
+          h('label', null, t('urlLabel'),
+            h('input', { className: 'kb-input', value: url, placeholder: 'https://superyan.fnos.net', onChange: (event) => setUrl(event.target.value) })),
+          h('label', null, t('tokenLabel'),
+            h('input', { className: 'kb-input', type: 'password', value: token, onChange: (event) => setToken(event.target.value), autoComplete: 'off' })),
+          h('div', { className: 'kb-status kb-status-warn' }, t('typeSelfhostDesc'))),
         error !== undefined && h('div', { className: 'kb-status kb-status-error' }, `${t('saveFailed')}: ${error}`),
         h('div', { className: 'kb-form-row', style: { justifyContent: 'flex-end', marginTop: 4 } },
           props.onCancel !== undefined && h('button', { className: 'kb-btn', onClick: props.onCancel }, t('cancel')),
@@ -1581,7 +1600,7 @@ window.__ModuleLoader__.load({
               const meta = source.type === 'local' ? source.path : `${source.url}${source.basePath ? '/' + source.basePath : ''}`
               return h('div', { key: source.id, className: 'kb-source-row' },
                 h('div', { className: 'kb-source-main' },
-                  h('div', { className: 'kb-source-name' }, `${source.name} · ${source.type === 'local' ? t('typeLocal') : t('typeWebdav')}`),
+                  h('div', { className: 'kb-source-name' }, `${source.name} · ${source.type === 'local' ? t('typeLocal') : source.type === 'selfhost' ? t('typeSelfhost') : t('typeWebdav')}`),
                   h('div', { className: 'kb-source-meta' }, meta)),
                 h('span', { className: `kb-status ${status.cls}` }, status.text),
                 canEdit && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => onEdit(source) }, t('edit')),
@@ -2220,7 +2239,7 @@ window.__ModuleLoader__.load({
             : h('div', { className: 'kb-surface' },
               h('div', { className: 'kb-empty' },
                 h('div', { className: 'kb-empty-icon' }, Icon.book(28)),
-                h('div', null, `${selected.name} · ${selected.type === 'local' ? t('typeLocal') : t('typeWebdav')}`),
+                h('div', null, `${selected.name} · ${selected.type === 'local' ? t('typeLocal') : selected.type === 'selfhost' ? t('typeSelfhost') : t('typeWebdav')}`),
                 h('div', { className: 'kb-empty-desc' }, t('selectHint'))))
 
       // The sidebar column runs the full page height; the right column holds
