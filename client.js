@@ -1800,7 +1800,7 @@ window.__ModuleLoader__.load({
             testResult.ok ? t('connOk', { n: testResult.items ?? 0 }) : `${t('connFailed')}: ${testResult.message ?? ''}`)),
         type === 'selfhost' && h(React.Fragment, null,
           h('label', null, t('urlLabel'),
-            h('input', { className: 'kb-input', value: url, placeholder: 'http://192.168.3.38:8001', onChange: (event) => setUrl(event.target.value) })),
+            h('input', { className: 'kb-input', value: url, placeholder: '/Users/you/ExportedTask', onChange: (event) => setUrl(event.target.value) })),
           h('label', null, t('siteLabel'),
             h('select', {
               className: 'kb-input', value: site,
