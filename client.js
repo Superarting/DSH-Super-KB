@@ -1621,7 +1621,7 @@ window.__ModuleLoader__.load({
               h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 } }, candidate.title),
               h('div', { style: { fontSize: 10, opacity: 0.6 } }, `${tierBadge(candidate.tier)} · ${candidate.reason === 'decision' ? t('upReasonDecision') : t('upReasonPopular')}${candidate.hits > 0 ? ` · ${candidate.hits}×` : ''}`)),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'workspace') }, t('upToProject')),
-            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral')))),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral'))))),
         // ---------- 会话同步 ----------
         h('div', { className: 'kb-mem-section' },
           h('div', { className: 'kb-mem-section-head' },
@@ -1751,7 +1751,7 @@ window.__ModuleLoader__.load({
               `${label} (${(list ?? []).length})`))),
             impPlan.projectFiles > 0 && h('div', { style: { fontSize: 11, opacity: 0.6 } }, `${t('impKindProject')}: ${impPlan.projectFiles}`),
             h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('impSelectHint'))),
-          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`))),
+          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`)),
       )
     }
 
