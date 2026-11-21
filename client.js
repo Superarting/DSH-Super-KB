@@ -402,6 +402,9 @@ window.__ModuleLoader__.load({
 /* Sidebar source switcher chips (library-space tabs). */
 .kb-src-chips{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 8px}
 .kb-src-chip{height:24px;border:1px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:var(--dsw-radius-sm);padding:0 8px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 记忆页轻量卡片：高度自适应内容（区别于浏览器主面板的 kb-surface flex 布局） */
+.kb-card{border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-1);overflow:visible}
+.kb-card .kb-diag-row{border-bottom:1px solid var(--dsw-alias-border-l1)}
 /* Toggle switch（设置开关，替代文字按钮） */
 .kb-switch{position:relative;display:inline-flex;width:40px;height:22px;flex:none;cursor:pointer;border:none;background:transparent;padding:0}
 .kb-switch-track{position:absolute;inset:0;border-radius:11px;background:var(--dsw-alias-border-l1,rgba(0,0,0,.28));transition:background .2s ease-out;box-shadow:inset 0 1px 2px rgba(0,0,0,.12)}
@@ -417,7 +420,7 @@ window.__ModuleLoader__.load({
 .kb-setting-label svg{flex:none;opacity:.7}
 .kb-setting-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}
 /* 分区节奏：section 间距统一 */
-.kb-mem-section{padding:12px;display:grid;gap:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);margin-top:10px}
+.kb-mem-section{padding:12px;display:grid;gap:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);margin-top:12px}
 .kb-mem-section-head{display:flex;align-items:center;gap:8px}
 .kb-mem-section-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 会话行 */
@@ -1614,11 +1617,11 @@ window.__ModuleLoader__.load({
         injectStats !== undefined && injectStats.count > 0 && h('div', { style: { fontSize: 12, opacity: 0.75, margin: '6px 2px 0' } },
           `${t('memInjectLine', { n: injectStats.count })} (${injectStats.chars}/${injectStats.maxChars})`),
         // ---------- 待升级分组 ----------
-        upCandidates !== undefined && upCandidates.length > 0 && h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
+        upCandidates !== undefined && upCandidates.length > 0 && h('div', { className: 'kb-card', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
           h('div', { className: 'kb-diag-key' }, `${t('upTitle')} (${upCandidates.length})`),
           ...upCandidates.slice(0, 5).map((candidate) => h('div', { key: candidate.path, style: { display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 } },
             h('div', { style: { flex: 1, minWidth: 0 } },
-              h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 } }, candidate.title),
+              h('div', { style: { fontWeight: 500, lineHeight: 1.4, wordBreak: 'break-word' } }, candidate.title),
               h('div', { style: { fontSize: 10, opacity: 0.6 } }, `${tierBadge(candidate.tier)} · ${candidate.reason === 'decision' ? t('upReasonDecision') : t('upReasonPopular')}${candidate.hits > 0 ? ` · ${candidate.hits}×` : ''}`)),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'workspace') }, t('upToProject')),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral'))))),
@@ -1683,11 +1686,11 @@ window.__ModuleLoader__.load({
         editing !== undefined && h(MemoryEditor, {
           initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,
         }),
-        h('div', { className: 'kb-surface', style: { padding: 4 } },
+        h('div', { className: 'kb-card', style: { padding: 4 } },
           filtered.length === 0
             ? h('div', { className: 'kb-empty', style: { padding: 20 } }, h('div', { className: 'kb-empty-desc' }, t('memEmpty')))
             : filtered.map((item) => h('div', {
-              key: item.path, className: 'kb-diag-row', style: { alignItems: 'flex-start', padding: '8px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)' },
+              key: item.path, className: 'kb-diag-row', style: { alignItems: 'flex-start', padding: '10px 8px' },
             },
               h('div', { style: { flex: 1, minWidth: 0 } },
                 h('div', { style: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' } },
@@ -1696,7 +1699,7 @@ window.__ModuleLoader__.load({
                   h('strong', { style: { fontSize: 13 } }, item.title),
                   h('span', { style: { fontSize: 10, opacity: 0.45 } }, (item.updated ?? '').slice(0, 10))),
                 item.keywords.length > 0 && h('div', { style: { fontSize: 11, opacity: 0.7, marginTop: 2 } }, item.keywords.join(' · ')),
-                h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: item.path }, item.summary)),
+                h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }, title: item.path }, item.summary)),
               h('div', { style: { display: 'flex', gap: 4, flex: 'none' } },
                 h('button', { className: 'kb-btn kb-btn-sm', onClick: () => openEdit(item) }, t('edit')),
                 item.source !== 'workbuddy' && item.source !== 'external-import' && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
@@ -1772,7 +1775,7 @@ window.__ModuleLoader__.load({
       ]
       const effectiveTitle = title.trim() || (body.trim() ? body.trim().split('\n')[0].slice(0, 40) : '')
       const effectiveSummary = body.trim().replace(/\s+/g, ' ').slice(0, 120)
-      return h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
+      return h('div', { className: 'kb-card', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
         isNew ? h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
           ...tierCards.map((card) => h('button', {
             key: card.value,
