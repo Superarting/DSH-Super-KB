@@ -101,7 +101,7 @@ window.__ModuleLoader__.load({
         syncMasterHint: 'Sync my sessions into the knowledge base so a new computer picks up where this one left off',
         syncAutoHint: 'New sessions sync automatically about 90 seconds after each turn ends',
         memRefresh: 'Refresh',
-        syncNasSourceLabel: 'NAS archive location', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
+        syncNasSourceLabel: 'NAS archive location', bulkEdit: 'Bulk edit', bulkTitle: 'Global memories (one document)', bulkSave: 'Save all', bulkSaving: 'Saving…', bulkSaved: 'Saved', bulkHint: 'Each entry starts with a --- frontmatter block (title required). Edit freely: add new entries, delete blocks, or rewrite content — Save all replaces the global store.', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
         impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
         upTitle: 'Worth promoting?', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
         memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
@@ -220,7 +220,7 @@ window.__ModuleLoader__.load({
         syncMasterHint: '把我的会话同步进知识库，新电脑接入后即可无缝接上进度',
         syncAutoHint: '每轮对话结束约90秒后自动同步新会话',
         memRefresh: '刷新',
-        syncNasSourceLabel: 'NAS 归档位置', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
+        syncNasSourceLabel: 'NAS 归档位置', bulkEdit: '整体编辑', bulkTitle: '全局记忆（一个文档）', bulkSave: '全部保存', bulkSaving: '保存中…', bulkSaved: '已保存', bulkHint: '每条记忆以 --- frontmatter 开头（必须含 title）。随意增删改块，保存后整体替换全局记忆库。', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
         impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
         upTitle: '值得升级的记忆', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
         memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
@@ -1440,6 +1440,29 @@ window.__ModuleLoader__.load({
           showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
         }
       }
+      const [bulkOpen, setBulkOpen] = React.useState(false)
+      const [bulkText, setBulkText] = React.useState('')
+      const [bulkBusy, setBulkBusy] = React.useState('')
+      const [bulkCount, setBulkCount] = React.useState(0)
+      const openBulk = async () => {
+        setBulkOpen(true); setBulkBusy('load')
+        try {
+          const data = await api('memory-bulk')
+          setBulkText(data.text ?? '')
+          setBulkCount(data.count ?? 0)
+        } catch (error) { showToast(`${t('loadFailed')}: ${error instanceof Error ? error.message : ''}`, true) }
+        finally { setBulkBusy('') }
+      }
+      const saveBulk = async () => {
+        setBulkBusy('save')
+        try {
+          const data = await postKb('memory-bulk', { text: bulkText })
+          showToast(`${t('bulkSaved')}: ${data.written}`)
+          setBulkOpen(false)
+          void reload()
+        } catch (error) { showToast(`${t('saveFailed')}: ${error instanceof Error ? error.message : ''}`, true) }
+        finally { setBulkBusy('') }
+      }
       const browseSyncPath = React.useCallback(async (kind, sourceId) => {
         setSyncPathLoading(true)
         try {
@@ -1613,7 +1636,20 @@ window.__ModuleLoader__.load({
             Icon.searchGlyph(14),
             h('input', { value: query, placeholder: t('memSearchPlaceholder'), onChange: (event) => setQuery(event.target.value) }),
             query.length > 0 && h('button', { className: 'kb-search-clear', onClick: () => setQuery('') }, '×')),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: openBulk, disabled: bulkBusy !== '' }, '✎', t('bulkEdit')),
           h('button', { className: 'kb-btn kb-btn-sm', onClick: openNew }, Icon.plus(), t('memNew'))),
+        bulkOpen && h('div', { className: 'kb-card', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
+          h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
+            h('span', { className: 'kb-diag-key', style: { flex: 1 } }, `${t('bulkTitle')} (${bulkCount})`),
+            h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: bulkBusy !== '', onClick: saveBulk }, bulkBusy === 'save' ? t('bulkSaving') : t('bulkSave')),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setBulkOpen(false) }, t('cancel'))),
+          h('div', { className: 'kb-setting-hint' }, t('bulkHint')),
+          bulkBusy === 'load' ? h('div', { className: 'kb-hint' }, t('syncLoading'))
+            : h('textarea', { value: bulkText, onChange: (event) => setBulkText(event.target.value),
+                spellCheck: false,
+                style: { width: '100%', minHeight: 380, resize: 'vertical', fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace', fontSize: 12, lineHeight: 1.5,
+                  border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)', padding: 10,
+                  background: 'var(--dsw-alias-bg-base)', color: 'var(--dsw-alias-label-primary)', outline: 'none' } })),
         injectStats !== undefined && injectStats.count > 0 && h('div', { style: { fontSize: 12, opacity: 0.75, margin: '6px 2px 0' } },
           `${t('memInjectLine', { n: injectStats.count })} (${injectStats.chars}/${injectStats.maxChars})`),
         // ---------- 待升级分组 ----------

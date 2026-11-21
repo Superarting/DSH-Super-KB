@@ -1780,6 +1780,7 @@ async function externalImportExecute(ctx, sourceDir, options) {
   const snapshot = await snapshotMemory(ctx)
   const written = []
   const assets = []
+  let skipped = 0
   const selected = (tierFilterKinds) => {
     const all = [...plan.identityFiles, ...plan.continuityFiles, ...plan.notes, ...plan.archives, ...plan.chatFiles]
     return all.filter(entry => tierFilterKinds.includes(entry.kind))
@@ -1787,6 +1788,12 @@ async function externalImportExecute(ctx, sourceDir, options) {
   const importAsNote = async (entry) => {
     const content = await nodeFs.promises.readFile(entry.absolute, 'utf8').catch(() => '')
     if (!content.trim()) return
+    // 去重：同包同名（同 imported-from 源文件）已导入过 → 跳过，不再产生 (1)(2) 副本
+    const outNameProbe = `${stamp}-${entry.kind}-${entry.name}`
+    if (await nodeFs.promises.access(nodePath.join(externalDir, outNameProbe), nodeFs.constants.F_OK).then(() => true).catch(() => false)) {
+      skipped += 1
+      return
+    }
     const isContinuity = entry.kind === 'continuity' || entry.kind === 'identity'
     const body = isContinuity
       ? `${digestContinuityDoc(content, 2400)}\n\n---\n\n<details><summary>原文全文（点击展开）</summary>\n\n${content}\n\n</details>`
@@ -1817,6 +1824,11 @@ async function externalImportExecute(ctx, sourceDir, options) {
     const nodePath2 = nodePath
     const assetsRoot = nodePath2.resolve(resolved.source.path, 'DSH记忆-导入资产', pkgName)
     await nodeFs.promises.mkdir(assetsRoot, { recursive: true })
+    // 去重：资产同名已存在 → 跳过
+    if (await nodeFs.promises.access(nodePath2.join(assetsRoot, entry.name), nodeFs.constants.F_OK).then(() => true).catch(() => false)) {
+      skipped += 1
+      return
+    }
     let target = nodePath2.join(assetsRoot, entry.name)
     for (let index = 1; index < 500; index += 1) {
       try { await nodeFs.promises.access(target, nodeFs.constants.F_OK) } catch { break }
@@ -1862,6 +1874,7 @@ async function externalImportExecute(ctx, sourceDir, options) {
     notesCount: written.length,
     assets,
     assetsCount: assets.length,
+    skippedDuplicates: skipped,
     snapshot: snapshot !== undefined ? nodePath.basename(snapshot) : undefined,
   })
 }
@@ -2326,6 +2339,81 @@ async function memoryRoute(ctx, request, op) {
     const dir = typeof body?.sourceDir === 'string' && body.sourceDir.trim() ? body.sourceDir.trim() : undefined
     if (dir === undefined) return fail(400, 'bad-body', 'sourceDir (absolute folder path) is required')
     return externalImportExecute(ctx, dir, { kinds: Array.isArray(body?.kinds) ? body.kinds : undefined })
+  }
+
+  // 全局记忆整体编辑：GET 拼接所有 global 记忆为大文本，POST 拆分写回（增删改都在一个文本框完成）
+  if (op === 'memory-bulk' && request.method === 'GET') {
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return fail(404, 'memory-disabled', 'memory system disabled or no local source')
+    const nodePath = (await import('node:path')).default
+    const fs = (await import('node:fs')).promises
+    const dir = nodePath.join(memory.root, 'global')
+    await fs.mkdir(dir, { recursive: true })
+    const files = (await fs.readdir(dir)).filter(f => f.endsWith('.md')).sort()
+    const parts = []
+    for (const file of files) {
+      const body = await fs.readFile(nodePath.join(dir, file), 'utf8')
+      parts.push(body.endsWith('\n') ? body : body + '\n')
+    }
+    return okPayload({ text: parts.join('\n'), count: files.length })
+  }
+
+  if (op === 'memory-bulk' && request.method === 'POST') {
+    const body = await readBody()
+    const text = typeof body?.text === 'string' ? body.text : ''
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return fail(404, 'memory-disabled', 'memory system disabled or no local source')
+    const nodePath = (await import('node:path')).default
+    const fs = (await import('node:fs')).promises
+    const dir = nodePath.join(memory.root, 'global')
+    await fs.mkdir(dir, { recursive: true })
+    // 拆分规则：每条以 frontmatter 开头 '---' 行；按 '---\ntitle:' 边界切
+    const chunks = []
+    let current = []
+    const lines = text.split('\n')
+    let inFm = false
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      if (line.trim() === '---') {
+        if (!inFm) {
+          if (current.some(l => l.trim() !== '')) chunks.push(current.join('\n'))
+          current = [line]
+          inFm = true
+          continue
+        } else {
+          current.push(line)
+          inFm = false
+          continue
+        }
+      }
+      current.push(line)
+    }
+    if (current.some(l => l.trim() !== '')) chunks.push(current.join('\n'))
+    // 解析每条的 title 写入独立文件；无 frontmatter 的拒绝
+    const slug = (s) => String(s).trim().replace(/[\\/:*?"<>|]/g, '-').slice(0, 80) || '记忆'
+    const written = []
+    for (const chunk of chunks) {
+      const m = chunk.match(/^---\n([\s\S]*?)\n---/)
+      if (m === null) return fail(422, 'bad-format', '每条记忆必须以 --- frontmatter 开头（含 title:）')
+      const tm = m[1].match(/^title:\s*(.+)$/m)
+      if (tm === null) return fail(422, 'bad-format', 'frontmatter 缺少 title 字段')
+      const title = tm[1].replace(/^["']|["']$/g, '').trim()
+      const now = new Date().toISOString()
+      let doc = chunk.trimEnd() + '\n'
+      // 补充 updated 时间戳
+      if (!/^updated:/m.test(m[1])) doc = doc.replace(/^---\n/, `---\nupdated: "${now}"\n`)
+      else doc = doc.replace(/^updated:.*$/m, `updated: "${now}"`)
+      const file = `${slug(title)}.md`
+      await fs.writeFile(nodePath.join(dir, file), doc, 'utf8')
+      written.push(file)
+    }
+    // 删除本次文本中不存在的旧文件（用户删条目 = 从文本中移除该块）
+    const before = (await fs.readdir(dir)).filter(f => f.endsWith('.md'))
+    for (const old of before) {
+      if (!written.includes(old)) await fs.rm(nodePath.join(dir, old)).catch(() => {})
+    }
+    void nasMirrorSyncBulk(ctx).catch(() => {})
+    return okPayload({ written: written.length, files: written })
   }
 
   if (op === 'memory-inject-stats') {
@@ -3493,6 +3581,23 @@ async function nasSyncSource(ctx) {
 }
 
 /** Mirror one memory note to NAS (non-blocking failures go to the pending queue). */
+// bulk 编辑后整目录镜像到 NAS（best effort，失败进 pending 队列）
+async function nasMirrorSyncBulk(ctx) {
+  const memory = await memoryRoot(ctx)
+  if (memory === undefined) return { skipped: true }
+  const nodePath = (await import('node:path')).default
+  const fs = (await import('node:fs')).promises
+  const dir = nodePath.join(memory.root, 'global')
+  const files = (await fs.readdir(dir)).filter(f => f.endsWith('.md'))
+  for (const file of files) {
+    const doc = await fs.readFile(nodePath.join(dir, file), 'utf8')
+    const m = doc.match(/^---\n([\s\S]*?)\n---/)
+    const title = m?.[1]?.match(/^title:\s*(.+)$/m)?.[1]?.replace(/^["']|["']$/g, '') ?? file.replace(/\.md$/, '')
+    await nasMirrorSave(ctx, 'global', '', title, { title }, doc.replace(/^---[\s\S]*?---\n?/, ''), `global/${file}`).catch(() => {})
+  }
+  return { mirrored: files.length }
+}
+
 async function nasMirrorSave(ctx, tier, cwdOrSessionId, title, meta, bodyText, relativePath) {
   const nodePath = (await import('node:path')).default
   const source = await nasSyncSource(ctx)
