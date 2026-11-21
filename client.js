@@ -1272,7 +1272,7 @@ window.__ModuleLoader__.load({
         h('span', { className: 'kb-status-error' }, `${t('loadFailed')}: ${state.error}`), ' ',
         h('button', { className: 'kb-btn kb-btn-sm', onClick: state.reload }, t('retry'))))
       const data = state.value
-      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } },
+      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px', overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' } },
         h('div', { className: 'kb-surface' },
           h('div', { className: 'kb-toolbar', style: { borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
             h('span', { className: 'kb-crumb' }, `${t('diagGenerated')}: ${data.generatedAt}`)),
@@ -1298,11 +1298,13 @@ window.__ModuleLoader__.load({
     // ---------- tiered memory view ----------
     /** Toggle switch（ON/OFF 图形开关，替代文字按钮） */
     function Switch({ on, onChange, disabled, label }) {
+      const handleClick = () => { if (disabled !== true) onChange(!on) }
+      const handleKeyDown = (e) => { if (disabled !== true && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); onChange(!on) } }
       return h('button', {
         className: 'kb-switch', 'data-on': on === true ? 'true' : 'false',
         role: 'switch', 'aria-checked': on === true, 'aria-label': label,
-        disabled: disabled === true,
-        onClick: () => { if (disabled !== true) onChange(!on) },
+        disabled: disabled === true, tabIndex: disabled === true ? -1 : 0,
+        onClick: handleClick, onKeyDown: handleKeyDown,
       },
         h('span', { className: 'kb-switch-track' }),
         h('span', { className: 'kb-switch-thumb' }))
@@ -1589,7 +1591,7 @@ window.__ModuleLoader__.load({
       if (memState.loading) return h('div', { className: 'kb-hint' }, t('loading'))
       if (memState.error !== undefined) return h('div', { className: 'kb-hint kb-status-error' }, `${t('loadFailed')}: ${memState.error}`)
 
-      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } },
+      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px', overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' } },
         h('div', { className: 'kb-toolbar', style: { gap: 8, flexWrap: 'wrap' } },
           tierChip('all', t('memAll')),
           tierChip('global', t('memGlobal'), t('memGlobalHint')),
@@ -1655,7 +1657,7 @@ window.__ModuleLoader__.load({
               h(Switch, { on: syncAuto === true, onChange: (value) => setSyncPref({ autoSync: value }), label: t('syncAutoHint') })),
             syncSessions === undefined ? h('div', { className: 'kb-hint' }, t('syncLoading'))
               : syncSessions.length === 0 ? h('div', { className: 'kb-hint' }, t('syncNoSessions'))
-                : h('div', { style: { display: 'grid', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)' } },
+                : h('div', { className: 'kb-sync-session-grid', style: { display: 'grid', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)', overflowY: 'auto', maxHeight: 300 } },
                   ...syncSessions.map((session) => {
                     const synced = syncIndex[session.id] !== undefined
                     return h('label', { key: session.id, className: 'kb-session-row' },
@@ -1960,7 +1962,7 @@ window.__ModuleLoader__.load({
       const [confirmingId, setConfirmingId] = React.useState(undefined)
       // Diagnostics-style layout: left-aligned rows on one surface, footer
       // actions left-aligned in the same rhythm (Add first, Back after).
-      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } },
+      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px', overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' } },
         h('div', { className: 'kb-surface' },
           h('div', { className: 'kb-toolbar', style: { borderBottom: '1px solid var(--dsw-alias-border-l1)' } }, h('h2', { className: 'kb-modal-title' }, t('sourcesTitle'))),
           h('div', { className: 'kb-sources' },
