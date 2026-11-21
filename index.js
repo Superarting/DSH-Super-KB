@@ -2382,6 +2382,28 @@ async function memoryRoute(ctx, request, op) {
     return okPayload(result)
   }
 
+  // 同步目标目录浏览：本地源列目录 / NAS 站点列目录（动态获取最新）
+  if (op === 'sync-browse') {
+    const sources = await readSourcesFromConfig(ctx)
+    const kind = url.searchParams.get('kind') ?? 'local'
+    const sourceId = url.searchParams.get('sourceId') ?? undefined
+    const path = url.searchParams.get('path') ?? ''
+    if (kind === 'local') {
+      const source = (sourceId !== undefined ? sources.find(s => s.id === sourceId) : undefined) ?? sources.find(s => s.type === 'local')
+      if (source === undefined) return fail(404, 'no-local', 'no local source configured')
+      const listing = await listDir(ctx, source, path)
+      if (listing.error !== undefined) return fail(422, 'browse-failed', listing.error)
+      return okPayload({ kind, sourceId: source.id, sourceName: source.name, path, items: listing.items ?? [] })
+    }
+    const source = sources.find(s => s.id === sourceId && s.type === 'selfhost' && s.site)
+      ?? sources.find(s => s.type === 'selfhost' && s.site)
+    if (source === undefined) return fail(404, 'no-selfhost', 'no selfhost source with a site configured')
+    const listing = await selfhostList(source, path)
+    if (listing.error !== undefined) return fail(422, 'browse-failed', listing.error)
+    const items = (listing.items ?? []).filter(item => item.kind === 'folder')
+    return okPayload({ kind: 'nas', sourceId: source.id, sourceName: source.name, site: source.site, path, items })
+  }
+
   // ---------- session sync ----------
   if (op === 'session-list') {
     const sessions = await listDshSessions()

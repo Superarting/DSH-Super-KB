@@ -1,6 +1,6 @@
 {
   "name": "dsh-super-kb",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "license": "MIT",
   "type": "module",
   "description": "DSH-Super-KB: knowledge-base panel for DeepSeek Harness — browse and preview images, SVG, PDF, audio, video, Office (docx/xlsx/pptx), CSV tables, Canvas boards and text/code from local folders or WebDAV; attach files to sessions; kb_search / kb_read / kb_list agent tools.",

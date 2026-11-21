@@ -91,25 +91,25 @@ window.__ModuleLoader__.load({
         memGlobalHint: 'Remembered in every session: your preferences, name-calling, habits', memWorkspaceHint: 'Only active in sessions of the chosen project folder', memSessionHint: 'Only belongs to this conversation; will not carry over',
         memInjectLine: '✓ {n} memories will be carried into every new session automatically',
         memMoreToggle: 'More actions',
-        syncTitle: 'Session sync', syncSwitch: 'Sync my sessions to the knowledge base',
+        syncTitle: 'Session sync', syncMasterTitle: 'Session sync', syncSwitch: 'Sync my sessions to the knowledge base',
         syncTargetLocal: 'Local folder', syncTargetNas: 'NAS', syncTargetHint: 'Choose where session handover packages are written. NAS writes go through your selfhost source and respect its write switch.',
         syncListTitle: 'Sessions on this machine', syncAll: 'Sync all', syncSelected: 'Sync selected', syncTarget: 'Target',
         syncSynced: 'Synced', syncNoSessions: 'No sessions found', syncLoading: 'Loading sessions…',
-        syncResumeHint: 'New computer? 1) Add a source pointing at the archive folder (or NAS) 2) Memory → More actions → Import package 3) New session picks up automatically',
+        syncResumeHint: 'New computer? 1) Add a source pointing at the archive folder (or NAS) 2) Memory → Import package 3) New session picks up automatically',
         syncDone: 'Synced', syncFail: 'Failed', syncNoPick: 'Select at least one session',
         syncAuto: 'Auto-sync new sessions (debounced ~90s)', syncTargetSource: 'NAS source', syncPersistedWarn: 'Saved for this session (profile patch prevents persistence)',
-        syncNasSourceLabel: 'NAS archive location', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
+        syncNasSourceLabel: 'NAS archive location', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
         impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
         upTitle: 'Worth promoting?', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
         memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
         memoryHint: 'The AI automatically carries your preferences and project background into every new session',
         memSearchPlaceholder: 'Search memories…', memNew: 'New', memExport: 'Export', memSnapshots: 'Snapshots',
-        memExportTitle: 'Export memories to a local folder (empty exports into the knowledge base memory folder)',
+        memExportTitle: 'Export memories', memExportDestHint: 'Export to a local folder; empty = knowledge-base memory folder',
         memExportDestPlaceholder: '/absolute/path/to/folder (optional)',
         memExportSharded: 'WorkBuddy shard format (keywords on line 2)',
         memExportGo: 'Export', memExporting: 'Exporting…',
         memExportDone: 'Export finished', memExportHint: 'Exports go to a timestamped subfolder; existing files are never overwritten. A snapshot is taken first.',
-        memSnapshotsTitle: 'Snapshots (auto-created before bulk operations; newest 20 kept)',
+        memSnapshotsTitle: 'Backup & rollback', memSnapshotsHint: 'Auto-created before bulk operations; newest 20 kept',
         memNoSnapshots: 'No snapshots yet.', memRestore: 'Verify/rollback', memRestoreDone: 'Snapshot verified',
         memSavedToast: 'Memory saved', memDeletedToast: 'Memory deleted', memDeleteConfirm: 'Delete memory',
         memEmpty: 'No memories yet. Save the first one with the memory_save tool or "New".',
@@ -207,25 +207,25 @@ window.__ModuleLoader__.load({
         memGlobalHint: '所有会话都会记得：你的偏好、称呼、习惯', memWorkspaceHint: '只在所选项目文件夹的会话中生效', memSessionHint: '只属于这一次对话，不会带到以后',
         memInjectLine: '✓ 下个新会话将自动带上 {n} 条记忆',
         memMoreToggle: '更多操作',
-        syncTitle: '会话同步', syncSwitch: '把我的会话同步到知识库',
+        syncTitle: '会话同步', syncMasterTitle: '会话同步', syncSwitch: '把我的会话同步到知识库',
         syncTargetLocal: '本地文件夹', syncTargetNas: 'NAS', syncTargetHint: '选择会话交接包的写入位置。NAS 写入经由你的自建知识库来源，并遵守该站点的写入开关。',
         syncListTitle: '本机会话', syncAll: '全部同步', syncSelected: '同步所选', syncTarget: '目标',
         syncSynced: '已同步', syncNoSessions: '没有找到会话', syncLoading: '正在加载会话…',
-        syncResumeHint: '换电脑后：① 知识库添加来源指向归档文件夹（或 NAS）② 记忆 → 更多操作 → 导入交接包 ③ 新会话自动接上进度',
+        syncResumeHint: '换电脑后：① 知识库添加来源指向归档文件夹（或 NAS）② 记忆 → 导入交接包 ③ 新会话自动接上进度',
         syncDone: '已同步', syncFail: '失败', syncNoPick: '请至少勾选一个会话',
         syncAuto: '自动同步新会话（约90秒防抖）', syncTargetSource: 'NAS 来源', syncPersistedWarn: '本次会话内生效（profile 补丁覆盖，重启后需重开）',
-        syncNasSourceLabel: 'NAS 归档位置', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
+        syncNasSourceLabel: 'NAS 归档位置', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
         impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
         upTitle: '值得升级的记忆', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
         memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
         memoryHint: '让 AI 在每个新会话自动带上你的偏好与项目背景',
         memSearchPlaceholder: '搜索记忆…', memNew: '新建', memExport: '导出', memSnapshots: '快照',
-        memExportTitle: '导出记忆到本地路径（留空则导出到知识库记忆目录）',
+        memExportTitle: '导出记忆', memExportDestHint: '导出到本地路径；留空则导出到知识库记忆目录',
         memExportDestPlaceholder: '/absolute/path/to/folder（可选）',
         memExportSharded: 'WorkBuddy 分片格式（第 2 行 keywords）',
         memExportGo: '导出', memExporting: '导出中…',
         memExportDone: '导出完成', memExportHint: '导出到时间戳子目录，不覆盖已有文件；导出前自动创建快照。',
-        memSnapshotsTitle: '快照（批量操作前自动创建，保留最近 20 个）',
+        memSnapshotsTitle: '备份与回滚', memSnapshotsHint: '批量操作前自动创建，保留最近 20 个',
         memNoSnapshots: '暂无快照。', memRestore: '校验/回滚', memRestoreDone: '快照校验完成',
         memSavedToast: '记忆已保存', memDeletedToast: '记忆已删除', memDeleteConfirm: '删除记忆',
         memEmpty: '暂无记忆。用 memory_save 工具或点「新建」保存第一条记忆。',
@@ -1338,8 +1338,6 @@ window.__ModuleLoader__.load({
       const [tierFilter, setTierFilter] = React.useState('all')
       const [query, setQuery] = React.useState('')
       const [editing, setEditing] = React.useState(undefined) // { path, meta, body } | { newTier }
-      const [moreOpen, setMoreOpen] = React.useState(false)
-      const [exportOpen, setExportOpen] = React.useState(false)
       const [exportDest, setExportDest] = React.useState('')
       const [exportTier, setExportTier] = React.useState('all')
       const [exportSharded, setExportSharded] = React.useState(false)
@@ -1354,6 +1352,11 @@ window.__ModuleLoader__.load({
       const [syncChecked, setSyncChecked] = React.useState({})
       const [syncBusy, setSyncBusy] = React.useState('')
       const [nasSources, setNasSources] = React.useState([])
+      const [localSources, setLocalSources] = React.useState([])
+      const [syncSourceId, setSyncSourceId] = React.useState(undefined) // 本地或NAS的来源id
+      const [syncPath, setSyncPath] = React.useState('')
+      const [syncPathOptions, setSyncPathOptions] = React.useState([])
+      const [syncPathLoading, setSyncPathLoading] = React.useState(false)
       const [nasSyncSourceId, setNasSyncSourceId] = React.useState('')
       const [impDoneInfo, setImpDoneInfo] = React.useState(undefined)
       const [injectStats, setInjectStats] = React.useState(undefined)
@@ -1394,6 +1397,7 @@ window.__ModuleLoader__.load({
           setSyncIndex(data.syncIndex ?? {})
           setNasSources(Array.isArray(data.nasSources) ? data.nasSources : [])
           setNasSyncSourceId(typeof data.nasSyncSourceId === 'string' ? data.nasSyncSourceId : '')
+          api('sources').then((d) => { setLocalSources((d.sources ?? []).filter((x) => x.type === 'local')) }).catch(() => {})
         } catch { setSyncSessions([]) }
       }, [])
       React.useEffect(() => { void reloadSync() }, [reloadSync])
@@ -1424,6 +1428,15 @@ window.__ModuleLoader__.load({
           showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
         }
       }
+      const browseSyncPath = React.useCallback(async (kind, sourceId) => {
+        setSyncPathLoading(true)
+        try {
+          const data = await postKb('sync-browse', { kind, sourceId, path: '' })
+          const folders = (data.items ?? []).filter((item) => item.kind === 'folder')
+          setSyncPathOptions(folders.map((f) => f.name))
+        } catch { setSyncPathOptions([]) }
+        finally { setSyncPathLoading(false) }
+      }, [])
       const pickImpFolder = async () => {
         try {
           const picked = typeof props.pickDirectory === 'function' ? await props.pickDirectory() : null
@@ -1599,7 +1612,7 @@ window.__ModuleLoader__.load({
               h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 } }, candidate.title),
               h('div', { style: { fontSize: 10, opacity: 0.6 } }, `${tierBadge(candidate.tier)} · ${candidate.reason === 'decision' ? t('upReasonDecision') : t('upReasonPopular')}${candidate.hits > 0 ? ` · ${candidate.hits}×` : ''}`)),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'workspace') }, t('upToProject')),
-            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral'))))),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral')))),
         // ---------- 会话同步 ----------
         h('div', { className: 'kb-mem-section' },
           h('div', { className: 'kb-mem-section-head' },
@@ -1608,27 +1621,41 @@ window.__ModuleLoader__.load({
             h(Switch, { on: syncOn === true, onChange: toggleSync, label: t('syncMasterHint') })),
           syncOn === true && h('div', { style: { display: 'grid', gap: 8, fontSize: 12 } },
             h('div', { className: 'kb-setting-row' },
-              h('span', { className: 'kb-setting-label' }, t('syncTarget')),
+              h('span', { className: 'kb-setting-label' }, SyncIcons.monitor(13), t('syncTargetLabel')),
               h('div', { style: { display: 'flex', gap: 10 } },
                 h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
-                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => setSyncPref({ target: 'local' }) }), SyncIcons.monitor(13), t('syncTargetLocal')),
+                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => { setSyncPref({ target: 'local' }); setSyncPath(''); } }), t('syncTargetLocal')),
                 h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
-                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => setSyncPref({ target: 'nas' }) }), SyncIcons.cloud(13), t('syncTargetNas')))),
-            syncTarget === 'nas' && h('div', { className: 'kb-setting-row' },
+                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => { setSyncPref({ target: 'nas' }); setSyncPath(''); } }), SyncIcons.cloud(13), t('syncTargetNas'))),
+            h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, t('syncNasSourceLabel')),
-              nasSources.length === 0
-                ? h('span', { className: 'kb-status kb-status-warn' }, t('syncNasEmpty'))
-                : h('select', { className: 'kb-input', value: nasSyncSourceId || (nasSources[0]?.id ?? ''), title: t('syncNasPickHint'),
-                    onChange: (event) => setSyncPref({ nasSyncSourceId: event.target.value }) },
-                    ...nasSources.map(source => h('option', { key: source.id, value: source.id },
-                      `📥 ${source.name} · ${source.site}`)))),
+              syncTarget === 'local'
+                ? h('select', { className: 'kb-input', value: syncSourceId ?? (localSources[0]?.id ?? ''),
+                    onFocus: () => void browseSyncPath('local', syncSourceId ?? (localSources[0]?.id ?? '')),
+                    onChange: (event) => { setSyncSourceId(event.target.value); setSyncPath(''); } },
+                    ...localSources.map(source => h('option', { key: source.id, value: source.id }, '💾 ' + source.name)),
+                    ...(localSources.length === 0 ? [h('option', { value: '' }, t('syncNasEmpty'))] : []))
+                : (nasSources.length === 0
+                    ? h('span', { className: 'kb-status kb-status-warn' }, t('syncNasEmpty'))
+                    : h('select', { className: 'kb-input', value: nasSyncSourceId || (nasSources[0]?.id ?? ''), title: t('syncNasPickHint'),
+                        onChange: (event) => { setSyncPref({ nasSyncSourceId: event.target.value }); setSyncPath(''); } },
+                        ...nasSources.map(source => h('option', { key: source.id, value: source.id },
+                          '📥 ' + source.name + ' \u00b7 ' + source.site))))),
+            h('div', { className: 'kb-setting-row' },
+              h('span', { className: 'kb-setting-label' }, t('syncTargetFolder')),
+              h('select', { className: 'kb-input', value: syncPath,
+                onFocus: () => { const sid = syncTarget === 'local' ? (syncSourceId ?? (localSources[0]?.id ?? '')) : (nasSyncSourceId || (nasSources[0]?.id ?? '')); void browseSyncPath(syncTarget, sid) },
+                disabled: syncTarget === 'nas' && nasSources.length === 0,
+                onChange: (event) => setSyncPath(event.target.value) },
+                syncPathLoading ? h('option', { value: '' }, '…') : h('option', { value: '' }, syncPathOptions.length === 0 ? t('syncTargetBrowse') : t('syncTargetRoot')),
+                ...syncPathOptions.map(name => h('option', { key: name, value: name }, '📁 ' + name)))),
+            syncPath !== '' && h('div', { className: 'kb-setting-hint' }, t('syncTargetFolder') + ': ' + syncPath)),
             h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, SyncIcons.gear(13), t('syncAuto')),
               h(Switch, { on: syncAuto === true, onChange: (value) => setSyncPref({ autoSync: value }), label: t('syncAutoHint') })),
-            h('div', { className: 'kb-setting-hint' }, t('syncAutoHint')),
             syncSessions === undefined ? h('div', { className: 'kb-hint' }, t('syncLoading'))
               : syncSessions.length === 0 ? h('div', { className: 'kb-hint' }, t('syncNoSessions'))
-                : h('div', { style: { display: 'grid', maxHeight: 220, overflowY: 'auto', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)' } },
+                : h('div', { style: { display: 'grid', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)' } },
                   ...syncSessions.map((session) => {
                     const synced = syncIndex[session.id] !== undefined
                     return h('label', { key: session.id, className: 'kb-session-row' },
@@ -1664,15 +1691,11 @@ window.__ModuleLoader__.load({
               h('div', { style: { display: 'flex', gap: 4, flex: 'none' } },
                 h('button', { className: 'kb-btn kb-btn-sm', onClick: () => openEdit(item) }, t('edit')),
                 item.source !== 'workbuddy' && item.source !== 'external-import' && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
-        // ---------- 更多操作（折叠） ----------
-        h('div', { style: { marginTop: 8, display: 'grid', gap: 6 } },
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { setMoreOpen((value) => !value); if (!moreOpen) { void reloadSnapshots() } } },
-            `${moreOpen ? '▾' : '▸'} ${t('memMoreToggle')}`)),
-        moreOpen && h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', margin: '2px 0 6px' } },
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setExportOpen((value) => !value) }, Icon.upload2(), t('memExport')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { setSnapOpen((value) => !value); void reloadSnapshots() } }, Icon.task(), t('memSnapshots'))),
-        moreOpen && exportOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
-          h('div', { className: 'kb-diag-key' }, t('memExportTitle')),
+        // ---------- 导出记忆 ----------
+        h('div', { className: 'kb-mem-section' },
+          h('div', { className: 'kb-mem-section-head' },
+            Icon.upload2(), h('span', { className: 'kb-mem-section-title' }, t('memExportTitle')),
+            h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: exporting, onClick: runExport }, exporting ? t('memExporting') : t('memExportGo'))),
           h('input', { value: exportDest, placeholder: t('memExportDestPlaceholder'), onChange: (event) => setExportDest(event.target.value), style: { width: '100%' } }),
           h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
             h('select', { value: exportTier, onChange: (event) => setExportTier(event.target.value), className: 'kb-btn kb-btn-sm' },
@@ -1684,16 +1707,22 @@ window.__ModuleLoader__.load({
             h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 } },
               h('input', { type: 'checkbox', checked: exportSharded, onChange: (event) => setExportSharded(event.target.checked) }),
               t('memExportSharded')),
-            h('button', { className: 'kb-btn kb-btn-sm', disabled: exporting, onClick: runExport }, exporting ? t('memExporting') : t('memExportGo'))),
-          h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('memExportHint'))),
-        moreOpen && snapOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 6 } },
-          h('div', { className: 'kb-diag-key' }, t('memSnapshotsTitle')),
+            exportDest.trim().length === 0 && h('span', { className: 'kb-status kb-status-warn' }, t('memExportDestHint'))),
+          h('div', { className: 'kb-setting-hint' }, t('memExportHint'))),
+        // ---------- 备份与回滚 ----------
+        h('div', { className: 'kb-mem-section' },
+          h('div', { className: 'kb-mem-section-head' },
+            Icon.task(), h('span', { className: 'kb-mem-section-title' }, t('memSnapshotsTitle')),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { void reloadSnapshots() } }, t('memRefresh'))),
+          h('div', { className: 'kb-setting-hint' }, t('memSnapshotsHint')),
           snapshots.length === 0 ? h('div', { className: 'kb-hint' }, t('memNoSnapshots')) :
             snapshots.map((snap) => h('div', { key: snap.name, style: { display: 'flex', gap: 8, alignItems: 'center' } },
               h('code', { style: { fontSize: 11 } }, snap.name),
               h('button', { className: 'kb-btn kb-btn-sm', onClick: () => restoreSnapshot(snap.name) }, t('memRestore'))))),
-        moreOpen && h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
-          h('div', { className: 'kb-diag-key' }, t('impTitle')),
+        // ---------- 导入交接包 ----------
+        h('div', { className: 'kb-mem-section' },
+          h('div', { className: 'kb-mem-section-head' },
+            SyncIcons.folderUp(15), h('span', { className: 'kb-mem-section-title' }, t('impTitle'))),
           h('div', { style: { display: 'flex', gap: 8 } },
             h('input', { value: impDir, placeholder: t('impDirPlaceholder'), onChange: (event) => setImpDir(event.target.value), style: { flex: 1, fontFamily: 'monospace', fontSize: 12 } }),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: pickImpFolder }, t('impPickFolder'))),
@@ -1713,7 +1742,7 @@ window.__ModuleLoader__.load({
               `${label} (${(list ?? []).length})`))),
             impPlan.projectFiles > 0 && h('div', { style: { fontSize: 11, opacity: 0.6 } }, `${t('impKindProject')}: ${impPlan.projectFiles}`),
             h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('impSelectHint'))),
-          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`)),
+          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`))),
       )
     }
 
