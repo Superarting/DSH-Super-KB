@@ -2442,7 +2442,7 @@ async function memoryRoute(ctx, request, op) {
       const decision = DECISION_WORDS.some(word => hay.includes(word))
       const hits = (memoryHitCounts.get(item.path) ?? 0) >= 2
       return decision || hits
-    }).map(item => ({ path: item.path, title: item.title, tier: item.tier, reason: DECISION_WORDS.some(word => `${item.title} ${item.summary}`.toLowerCase().includes(word)) ? 'decision' : 'popular', hits: memoryHitCounts.get(item.path) ?? 0 }))
+    }).map(item => ({ path: item.path, title: item.title, summary: item.summary ?? '', tier: item.tier, reason: DECISION_WORDS.some(word => `${item.title} ${item.summary}`.toLowerCase().includes(word)) ? 'decision' : 'popular', hits: memoryHitCounts.get(item.path) ?? 0 }))
     return okPayload({ candidates })
   }
 
