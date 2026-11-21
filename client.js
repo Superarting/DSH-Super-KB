@@ -98,7 +98,10 @@ window.__ModuleLoader__.load({
         syncResumeHint: 'New computer? 1) Add a source pointing at the archive folder (or NAS) 2) Memory → Import package 3) New session picks up automatically',
         syncDone: 'Synced', syncFail: 'Failed', syncNoPick: 'Select at least one session',
         syncAuto: 'Auto-sync new sessions (debounced ~90s)', syncTargetSource: 'NAS source', syncPersistedWarn: 'Saved for this session (profile patch prevents persistence)',
-        syncNasSourceLabel: 'NAS archive location', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
+        syncMasterHint: 'Sync my sessions into the knowledge base so a new computer picks up where this one left off',
+        syncAutoHint: 'New sessions sync automatically about 90 seconds after each turn ends',
+        memRefresh: 'Refresh',
+        syncNasSourceLabel: 'NAS archive location', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
         impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
         upTitle: 'Worth promoting?', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
         memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
@@ -214,7 +217,10 @@ window.__ModuleLoader__.load({
         syncResumeHint: '换电脑后：① 知识库添加来源指向归档文件夹（或 NAS）② 记忆 → 导入交接包 ③ 新会话自动接上进度',
         syncDone: '已同步', syncFail: '失败', syncNoPick: '请至少勾选一个会话',
         syncAuto: '自动同步新会话（约90秒防抖）', syncTargetSource: 'NAS 来源', syncPersistedWarn: '本次会话内生效（profile 补丁覆盖，重启后需重开）',
-        syncNasSourceLabel: 'NAS 归档位置', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
+        syncMasterHint: '把我的会话同步进知识库，新电脑接入后即可无缝接上进度',
+        syncAutoHint: '每轮对话结束约90秒后自动同步新会话',
+        memRefresh: '刷新',
+        syncNasSourceLabel: 'NAS 归档位置', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
         impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
         upTitle: '值得升级的记忆', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
         memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
@@ -397,12 +403,13 @@ window.__ModuleLoader__.load({
 .kb-src-chips{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 8px}
 .kb-src-chip{height:24px;border:1px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:var(--dsw-radius-sm);padding:0 8px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Toggle switch（设置开关，替代文字按钮） */
-.kb-switch{position:relative;display:inline-flex;width:36px;height:20px;flex:none;cursor:pointer;border:none;background:transparent;padding:0}
-.kb-switch-track{position:absolute;inset:0;border-radius:10px;background:var(--dsw-alias-border-l1,rgba(0,0,0,.18));transition:background .2s ease-out}
-.kb-switch-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-bg-primary,#fff);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s ease-out}
-.kb-switch[data-on="true"] .kb-switch-track{background:var(--dsw-alias-interactive-selected,--dsw-alias-interactive-selected,var(--dsw-alias-accent,#3b82f6))}
-.kb-switch[data-on="true"] .kb-switch-thumb{transform:translateX(16px)}
-.kb-switch:focus-visible{outline:2px solid var(--dsw-alias-interactive-selected,#3b82f6);outline-offset:2px;border-radius:10px}
+.kb-switch{position:relative;display:inline-flex;width:40px;height:22px;flex:none;cursor:pointer;border:none;background:transparent;padding:0}
+.kb-switch-track{position:absolute;inset:0;border-radius:11px;background:var(--dsw-alias-border-l1,rgba(0,0,0,.28));transition:background .2s ease-out;box-shadow:inset 0 1px 2px rgba(0,0,0,.12)}
+.kb-switch-thumb{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--dsw-alias-bg-primary,#fff);border:1px solid rgba(0,0,0,.1);box-shadow:0 1px 3px rgba(0,0,0,.3);transition:transform .2s ease-out,background .2s ease-out}
+.kb-switch[data-on="true"] .kb-switch-track{background:var(--dsw-alias-interactive-selected,var(--dsw-alias-accent,#3b82f6))}
+.kb-switch[data-on="true"] .kb-switch-thumb{transform:translateX(18px);background:#fff}
+.kb-switch[data-on="false"] .kb-switch-thumb{background:var(--dsw-alias-bg-primary,#fff)}
+.kb-switch:focus-visible{outline:2px solid var(--dsw-alias-interactive-selected,var(--dsw-alias-accent,#3b82f6));outline-offset:2px;border-radius:11px}
 .kb-switch:disabled{opacity:.45;cursor:default}
 /* 设置行（icon-label + 控件 右对齐） */
 .kb-setting-row{display:flex;align-items:center;gap:10px;min-height:32px}
@@ -1272,7 +1279,7 @@ window.__ModuleLoader__.load({
         h('span', { className: 'kb-status-error' }, `${t('loadFailed')}: ${state.error}`), ' ',
         h('button', { className: 'kb-btn kb-btn-sm', onClick: state.reload }, t('retry'))))
       const data = state.value
-      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px', overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' } },
+      return h('div', { className: 'kb-main', style: { flex: 1, minHeight: 0, padding: '10px 14px 14px', overflowY: 'auto' } },
         h('div', { className: 'kb-surface' },
           h('div', { className: 'kb-toolbar', style: { borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
             h('span', { className: 'kb-crumb' }, `${t('diagGenerated')}: ${data.generatedAt}`)),
@@ -1435,7 +1442,7 @@ window.__ModuleLoader__.load({
         try {
           const data = await postKb('sync-browse', { kind, sourceId, path: '' })
           const folders = (data.items ?? []).filter((item) => item.kind === 'folder')
-          setSyncPathOptions(folders.map((f) => f.name))
+          setSyncPathOptions(folders.map((f) => ({ path: f.name, depth: f.depth ?? 1 })))
         } catch { setSyncPathOptions([]) }
         finally { setSyncPathLoading(false) }
       }, [])
@@ -1591,7 +1598,7 @@ window.__ModuleLoader__.load({
       if (memState.loading) return h('div', { className: 'kb-hint' }, t('loading'))
       if (memState.error !== undefined) return h('div', { className: 'kb-hint kb-status-error' }, `${t('loadFailed')}: ${memState.error}`)
 
-      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px', overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' } },
+      return h('div', { className: 'kb-main', style: { flex: 1, minHeight: 0, padding: '10px 14px 14px', overflowY: 'auto' } },
         h('div', { className: 'kb-toolbar', style: { gap: 8, flexWrap: 'wrap' } },
           tierChip('all', t('memAll')),
           tierChip('global', t('memGlobal'), t('memGlobalHint')),
@@ -1649,8 +1656,8 @@ window.__ModuleLoader__.load({
                 onFocus: () => { const sid = syncTarget === 'local' ? (syncSourceId ?? (localSources[0]?.id ?? '')) : (nasSyncSourceId || (nasSources[0]?.id ?? '')); void browseSyncPath(syncTarget, sid) },
                 disabled: syncTarget === 'nas' && nasSources.length === 0,
                 onChange: (event) => setSyncPath(event.target.value) },
-                syncPathLoading ? h('option', { value: '' }, '…') : h('option', { value: '' }, syncPathOptions.length === 0 ? t('syncTargetBrowse') : t('syncTargetRoot')),
-                ...syncPathOptions.map(name => h('option', { key: name, value: name }, '📁 ' + name)))),
+                syncPathLoading ? h('option', { value: '' }, t('syncTargetLoading')) : h('option', { value: '' }, syncPathOptions.length === 0 ? t('syncTargetBrowse') : t('syncTargetRoot')),
+                ...syncPathOptions.map(opt => h('option', { key: opt.path, value: opt.path }, `${'\u00a0'.repeat(((opt.depth ?? 1) - 1) * 4)}📁 ${opt.path.split('/').pop()}${(opt.depth ?? 1) > 1 ? '  (' + opt.path + ')' : ''}`)))),
             syncPath !== '' && h('div', { className: 'kb-setting-hint' }, t('syncTargetFolder') + ': ' + syncPath)),
             h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, SyncIcons.gear(13), t('syncAuto')),
@@ -1962,7 +1969,7 @@ window.__ModuleLoader__.load({
       const [confirmingId, setConfirmingId] = React.useState(undefined)
       // Diagnostics-style layout: left-aligned rows on one surface, footer
       // actions left-aligned in the same rhythm (Add first, Back after).
-      return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px', overflowY: 'auto', maxHeight: 'calc(100vh - 60px)' } },
+      return h('div', { className: 'kb-main', style: { flex: 1, minHeight: 0, padding: '10px 14px 14px', overflowY: 'auto' } },
         h('div', { className: 'kb-surface' },
           h('div', { className: 'kb-toolbar', style: { borderBottom: '1px solid var(--dsw-alias-border-l1)' } }, h('h2', { className: 'kb-modal-title' }, t('sourcesTitle'))),
           h('div', { className: 'kb-sources' },

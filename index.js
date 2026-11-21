@@ -905,7 +905,7 @@ async function routeRequest(ctx, request) {
   }
 
   // ---------- tiered memory API ----------
-  if (op?.startsWith('memory-') || op?.startsWith('import-') || op?.startsWith('session-') || op?.startsWith('nas-')) {
+  if (op?.startsWith('memory-') || op?.startsWith('import-') || op?.startsWith('session-') || op?.startsWith('nas-') || op?.startsWith('sync-')) {
     return memoryRoute(ctx, request, op)
   }
 
@@ -2388,20 +2388,33 @@ async function memoryRoute(ctx, request, op) {
     const kind = url.searchParams.get('kind') ?? 'local'
     const sourceId = url.searchParams.get('sourceId') ?? undefined
     const path = url.searchParams.get('path') ?? ''
+    const MAX_DEPTH = 4
+    const folders = []
+    const walk = async (walkKind, walkSource, walkPath, depth) => {
+      if (depth > MAX_DEPTH || folders.length >= 200) return
+      let listing
+      if (walkKind === 'local') listing = await listDir(ctx, walkSource, walkPath)
+      else listing = await selfhostList(walkSource, walkPath)
+      if (listing.error !== undefined || !Array.isArray(listing.items)) return
+      for (const item of listing.items) {
+        if (item.kind !== 'folder') continue
+        const full = walkPath ? `${walkPath}/${item.name}` : item.name
+        folders.push({ path: full, depth })
+        if (folders.length >= 200) return
+        await walk(walkKind, walkSource, full, depth + 1)
+      }
+    }
     if (kind === 'local') {
       const source = (sourceId !== undefined ? sources.find(s => s.id === sourceId) : undefined) ?? sources.find(s => s.type === 'local')
       if (source === undefined) return fail(404, 'no-local', 'no local source configured')
-      const listing = await listDir(ctx, source, path)
-      if (listing.error !== undefined) return fail(422, 'browse-failed', listing.error)
-      return okPayload({ kind, sourceId: source.id, sourceName: source.name, path, items: listing.items ?? [] })
+      await walk('local', source, '', 1)
+      return okPayload({ kind, sourceId: source.id, sourceName: source.name, path, items: folders.map(f => ({ name: f.path, kind: 'folder', depth: f.depth })) })
     }
     const source = sources.find(s => s.id === sourceId && s.type === 'selfhost' && s.site)
       ?? sources.find(s => s.type === 'selfhost' && s.site)
     if (source === undefined) return fail(404, 'no-selfhost', 'no selfhost source with a site configured')
-    const listing = await selfhostList(source, path)
-    if (listing.error !== undefined) return fail(422, 'browse-failed', listing.error)
-    const items = (listing.items ?? []).filter(item => item.kind === 'folder')
-    return okPayload({ kind: 'nas', sourceId: source.id, sourceName: source.name, site: source.site, path, items })
+    await walk('nas', source, '', 1)
+    return okPayload({ kind: 'nas', sourceId: source.id, sourceName: source.name, site: source.site, path, items: folders.map(f => ({ name: f.path, kind: 'folder', depth: f.depth })) })
   }
 
   // ---------- session sync ----------
