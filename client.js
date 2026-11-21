@@ -98,6 +98,7 @@ window.__ModuleLoader__.load({
         syncResumeHint: 'New computer? 1) Add a source pointing at the archive folder (or NAS) 2) Memory → More actions → Import package 3) New session picks up automatically',
         syncDone: 'Synced', syncFail: 'Failed', syncNoPick: 'Select at least one session',
         syncAuto: 'Auto-sync new sessions (debounced ~90s)', syncTargetSource: 'NAS source', syncPersistedWarn: 'Saved for this session (profile patch prevents persistence)',
+        syncNasSourceLabel: 'NAS archive location', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
         impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
         upTitle: 'Worth promoting?', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
         memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
@@ -213,6 +214,7 @@ window.__ModuleLoader__.load({
         syncResumeHint: '换电脑后：① 知识库添加来源指向归档文件夹（或 NAS）② 记忆 → 更多操作 → 导入交接包 ③ 新会话自动接上进度',
         syncDone: '已同步', syncFail: '失败', syncNoPick: '请至少勾选一个会话',
         syncAuto: '自动同步新会话（约90秒防抖）', syncTargetSource: 'NAS 来源', syncPersistedWarn: '本次会话内生效（profile 补丁覆盖，重启后需重开）',
+        syncNasSourceLabel: 'NAS 归档位置', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
         impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
         upTitle: '值得升级的记忆', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
         memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
@@ -394,6 +396,27 @@ window.__ModuleLoader__.load({
 /* Sidebar source switcher chips (library-space tabs). */
 .kb-src-chips{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 8px}
 .kb-src-chip{height:24px;border:1px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);border-radius:var(--dsw-radius-sm);padding:0 8px;font-size:12px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Toggle switch（设置开关，替代文字按钮） */
+.kb-switch{position:relative;display:inline-flex;width:36px;height:20px;flex:none;cursor:pointer;border:none;background:transparent;padding:0}
+.kb-switch-track{position:absolute;inset:0;border-radius:10px;background:var(--dsw-alias-border-l1,rgba(0,0,0,.18));transition:background .2s ease-out}
+.kb-switch-thumb{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-bg-primary,#fff);box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s ease-out}
+.kb-switch[data-on="true"] .kb-switch-track{background:var(--dsw-alias-interactive-selected,--dsw-alias-interactive-selected,var(--dsw-alias-accent,#3b82f6))}
+.kb-switch[data-on="true"] .kb-switch-thumb{transform:translateX(16px)}
+.kb-switch:focus-visible{outline:2px solid var(--dsw-alias-interactive-selected,#3b82f6);outline-offset:2px;border-radius:10px}
+.kb-switch:disabled{opacity:.45;cursor:default}
+/* 设置行（icon-label + 控件 右对齐） */
+.kb-setting-row{display:flex;align-items:center;gap:10px;min-height:32px}
+.kb-setting-label{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dsw-alias-label-primary);flex:1;min-width:0}
+.kb-setting-label svg{flex:none;opacity:.7}
+.kb-setting-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45}
+/* 分区节奏：section 间距统一 */
+.kb-mem-section{padding:12px;display:grid;gap:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);margin-top:10px}
+.kb-mem-section-head{display:flex;align-items:center;gap:8px}
+.kb-mem-section-title{font-size:12px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 会话行 */
+.kb-session-row{display:flex;gap:8px;align-items:center;padding:6px 8px;border-bottom:1px solid var(--dsw-alias-border-l1);cursor:pointer}
+.kb-session-row:last-child{border-bottom:none}
+.kb-session-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 @media (hover: hover){ .kb-src-chip:hover{background:var(--dsw-alias-interactive-bg-hover)} }
 .kb-src-chip[data-active]{border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary);font-weight:500}
 .kb-pop-confirm{display:flex;flex-direction:column;gap:8px;padding:10px;min-width:220px}
@@ -1273,6 +1296,32 @@ window.__ModuleLoader__.load({
     }
 
     // ---------- tiered memory view ----------
+    /** Toggle switch（ON/OFF 图形开关，替代文字按钮） */
+    function Switch({ on, onChange, disabled, label }) {
+      return h('button', {
+        className: 'kb-switch', 'data-on': on === true ? 'true' : 'false',
+        role: 'switch', 'aria-checked': on === true, 'aria-label': label,
+        disabled: disabled === true,
+        onClick: () => { if (disabled !== true) onChange(!on) },
+      },
+        h('span', { className: 'kb-switch-track' }),
+        h('span', { className: 'kb-switch-thumb' }))
+    }
+    /** 小图标集（设置行用） */
+    const SyncIcons = {
+      gear: (size = 14) => h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 },
+        h('circle', { cx: 12, cy: 12, r: 3 }),
+        h('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z' })),
+      cloud: (size = 14) => h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 },
+        h('path', { d: 'M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z' })),
+      monitor: (size = 14) => h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 },
+        h('rect', { x: 2, y: 3, width: 20, height: 14, rx: 2 }), h('line', { x1: 8, y1: 21, x2: 16, y2: 21 }), h('line', { x1: 12, y1: 17, x2: 12, y2: 21 })),
+      refresh: (size = 14) => h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 },
+        h('path', { d: 'M21 12a9 9 0 1 1-2.64-6.36' }), h('polyline', { points: '21 3 21 9 15 9' })),
+      folderUp: (size = 14) => h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 },
+        h('path', { d: 'M4 20h16a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1h-7.6l-2-2H4a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1Z' }), h('path', { d: 'M12 15V9' }), h('path', { d: 'm9 12 3-3 3 3' })),
+    }
+
     /** Human tier badge: raw tier keys never reach the screen. */
     function tierBadge(tier) {
       if (tier === 'global') return '⭐ ' + t('memGlobal').replace(/^⭐\s*/, '')
@@ -1304,6 +1353,8 @@ window.__ModuleLoader__.load({
       const [syncTarget, setSyncTarget] = React.useState('local')
       const [syncChecked, setSyncChecked] = React.useState({})
       const [syncBusy, setSyncBusy] = React.useState('')
+      const [nasSources, setNasSources] = React.useState([])
+      const [nasSyncSourceId, setNasSyncSourceId] = React.useState('')
       const [impDoneInfo, setImpDoneInfo] = React.useState(undefined)
       const [injectStats, setInjectStats] = React.useState(undefined)
       const [upCandidates, setUpCandidates] = React.useState(undefined)
@@ -1341,6 +1392,8 @@ window.__ModuleLoader__.load({
           setSyncTarget(data.target === 'nas' ? 'nas' : 'local')
           setSyncSessions(data.sessions ?? [])
           setSyncIndex(data.syncIndex ?? {})
+          setNasSources(Array.isArray(data.nasSources) ? data.nasSources : [])
+          setNasSyncSourceId(typeof data.nasSyncSourceId === 'string' ? data.nasSyncSourceId : '')
         } catch { setSyncSessions([]) }
       }, [])
       React.useEffect(() => { void reloadSync() }, [reloadSync])
@@ -1356,6 +1409,7 @@ window.__ModuleLoader__.load({
       const setSyncPref = async (patch) => {
         if (patch.autoSync !== undefined) setSyncAuto(patch.autoSync)
         if (patch.target !== undefined) setSyncTarget(patch.target)
+        if (patch.nasSyncSourceId !== undefined) setNasSyncSourceId(patch.nasSyncSourceId)
         try {
           const data = await postKb('session-sync-toggle', patch)
           if (data.persisted === false) showToast(t('syncPersistedWarn'), true)
@@ -1547,28 +1601,37 @@ window.__ModuleLoader__.load({
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'workspace') }, t('upToProject')),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral'))))),
         // ---------- 会话同步 ----------
-        h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
-          h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
-            h('div', { className: 'kb-diag-key', style: { flex: 1 } }, t('syncTitle')),
-            h('button', { className: `kb-btn kb-btn-sm${syncOn === true ? ' kb-btn-primary' : ''}`, onClick: toggleSync },
-              syncOn === true ? 'ON' : 'OFF')),
+        h('div', { className: 'kb-mem-section' },
+          h('div', { className: 'kb-mem-section-head' },
+            SyncIcons.refresh(15),
+            h('span', { className: 'kb-mem-section-title' }, t('syncMasterTitle')),
+            h(Switch, { on: syncOn === true, onChange: toggleSync, label: t('syncMasterHint') })),
           syncOn === true && h('div', { style: { display: 'grid', gap: 8, fontSize: 12 } },
-            h('div', { style: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
-              h('span', { className: 'kb-diag-key' }, t('syncTarget')),
-              h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
-                h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => setSyncPref({ target: 'local' }) }), t('syncTargetLocal')),
-              h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
-                h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => setSyncPref({ target: 'nas' }) }), t('syncTargetNas')),
-              h('span', { className: 'kb-hint', style: { fontSize: 11 } }, t('syncTargetHint'))),
-            h('label', { style: { display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' } },
-              h('input', { type: 'checkbox', checked: syncAuto === true, onChange: (event) => setSyncPref({ autoSync: event.target.checked }) }),
-              t('syncAuto')),
+            h('div', { className: 'kb-setting-row' },
+              h('span', { className: 'kb-setting-label' }, t('syncTarget')),
+              h('div', { style: { display: 'flex', gap: 10 } },
+                h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
+                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => setSyncPref({ target: 'local' }) }), SyncIcons.monitor(13), t('syncTargetLocal')),
+                h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
+                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => setSyncPref({ target: 'nas' }) }), SyncIcons.cloud(13), t('syncTargetNas')))),
+            syncTarget === 'nas' && h('div', { className: 'kb-setting-row' },
+              h('span', { className: 'kb-setting-label' }, t('syncNasSourceLabel')),
+              nasSources.length === 0
+                ? h('span', { className: 'kb-status kb-status-warn' }, t('syncNasEmpty'))
+                : h('select', { className: 'kb-input', value: nasSyncSourceId || (nasSources[0]?.id ?? ''), title: t('syncNasPickHint'),
+                    onChange: (event) => setSyncPref({ nasSyncSourceId: event.target.value }) },
+                    ...nasSources.map(source => h('option', { key: source.id, value: source.id },
+                      `📥 ${source.name} · ${source.site}`)))),
+            h('div', { className: 'kb-setting-row' },
+              h('span', { className: 'kb-setting-label' }, SyncIcons.gear(13), t('syncAuto')),
+              h(Switch, { on: syncAuto === true, onChange: (value) => setSyncPref({ autoSync: value }), label: t('syncAutoHint') })),
+            h('div', { className: 'kb-setting-hint' }, t('syncAutoHint')),
             syncSessions === undefined ? h('div', { className: 'kb-hint' }, t('syncLoading'))
               : syncSessions.length === 0 ? h('div', { className: 'kb-hint' }, t('syncNoSessions'))
-                : h('div', { style: { display: 'grid', gap: 4, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)' } },
+                : h('div', { style: { display: 'grid', maxHeight: 220, overflowY: 'auto', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)' } },
                   ...syncSessions.map((session) => {
                     const synced = syncIndex[session.id] !== undefined
-                    return h('label', { key: session.id, style: { display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid var(--dsw-alias-border-l1)', cursor: 'pointer' } },
+                    return h('label', { key: session.id, className: 'kb-session-row' },
                       h('input', { type: 'checkbox', checked: syncChecked[session.id] === true,
                         onChange: (event) => setSyncChecked((prev) => ({ ...prev, [session.id]: event.target.checked })) }),
                       h('div', { style: { flex: 1, minWidth: 0 } },
@@ -1579,7 +1642,7 @@ window.__ModuleLoader__.load({
             syncSessions !== undefined && syncSessions.length > 0 && h('div', { style: { display: 'flex', gap: 8 } },
               h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: syncBusy !== '', onClick: () => runSync(false) }, syncBusy === 'sel' ? '…' : t('syncSelected')),
               h('button', { className: 'kb-btn kb-btn-sm', disabled: syncBusy !== '', onClick: () => runSync(true) }, syncBusy === 'all' ? '…' : t('syncAll'))),
-            h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('syncResumeHint')))),
+            h('div', { className: 'kb-setting-hint' }, t('syncResumeHint')))),
         // ---------- 记忆列表 ----------
         editing !== undefined && h(MemoryEditor, {
           initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,

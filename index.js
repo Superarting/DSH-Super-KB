@@ -2394,12 +2394,20 @@ async function memoryRoute(ctx, request, op) {
       const source = sources.find(candidate => candidate.type === 'local')
       if (source !== undefined) syncIndex = JSON.parse(await nodeFs.promises.readFile(nodePath.resolve(source.path, SYNC_ARCHIVE_DIR, '.sync-index.json'), 'utf8'))
     } catch {}
+    // NAS 目标候选：所有配置了站点的 selfhost 来源（含名称，供下拉可视化选择）
+    const sources = await readSourcesFromConfig(ctx)
+    const nasSources = sources.filter(candidate => candidate.type === 'selfhost' && candidate.site)
+      .map(candidate => ({ id: candidate.id, name: candidate.name, site: candidate.site, url: candidate.url }))
+    const nasConfigured = memoryConfig().nasSyncSource
     return okPayload({
       sessions,
       syncIndex,
       enabled: memoryConfig().sessionSyncEnabled,
       autoSync: memoryConfig().sessionAutoSync,
       target: memoryConfig().sessionSyncTarget,
+      nasSources,
+      nasSyncSourceId: memoryConfig().sessionSyncSource || nasConfigured,
+      nasSyncEnabled: memoryConfig().nasSyncEnabled,
     })
   }
 
@@ -2414,7 +2422,7 @@ async function memoryRoute(ctx, request, op) {
     if (body?.enabled !== undefined) liveConfig.memory.sessionSyncEnabled = body.enabled === true
     if (body?.autoSync !== undefined) liveConfig.memory.sessionAutoSync = body.autoSync === true
     if (typeof body?.target === 'string' && ['local', 'nas'].includes(body.target)) liveConfig.memory.sessionSyncTarget = body.target
-    if (typeof body?.sourceId === 'string') liveConfig.memory.sessionSyncSource = body.sourceId
+    if (typeof body?.nasSyncSourceId === 'string') { liveConfig.memory.sessionSyncSource = body.nasSyncSourceId; liveConfig.memory.nasSync ??= {}; liveConfig.memory.nasSync.sourceId = body.nasSyncSourceId }
     // patch 覆盖型 profile 下持久化可能被拒：内存即时生效，尽力持久化
     let persisted = false
     try {
@@ -2423,7 +2431,7 @@ async function memoryRoute(ctx, request, op) {
         if (body?.enabled !== undefined) draft.memory.sessionSyncEnabled = body.enabled === true
         if (body?.autoSync !== undefined) draft.memory.sessionAutoSync = body.autoSync === true
         if (typeof body?.target === 'string' && ['local', 'nas'].includes(body.target)) draft.memory.sessionSyncTarget = body.target
-        if (typeof body?.sourceId === 'string') draft.memory.sessionSyncSource = body.sourceId
+        if (typeof body?.nasSyncSourceId === 'string') { draft.memory.sessionSyncSource = body.nasSyncSourceId; draft.memory.nasSync ??= {}; draft.memory.nasSync.sourceId = body.nasSyncSourceId }
       })
       persisted = true
     } catch {}
@@ -2431,6 +2439,7 @@ async function memoryRoute(ctx, request, op) {
       enabled: memoryConfig().sessionSyncEnabled,
       autoSync: memoryConfig().sessionAutoSync,
       target: memoryConfig().sessionSyncTarget,
+      nasSyncSourceId: memoryConfig().sessionSyncSource,
       persisted,
     })
   }
