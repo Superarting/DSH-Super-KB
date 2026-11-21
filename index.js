@@ -70,10 +70,20 @@ export const Config = Schema.object({
     injectionMaxChars: Schema.number().default(1500),
     /** Similarity gate: BM25-overlap ratio above which save suggests update instead of create. */
     similarityThreshold: Schema.number().min(0).max(1).default(0.7),
-    workbuddy: Schema.object({
-      enabled: Schema.boolean().default(true),
-      /** import | export | both */
-      direction: Schema.union(['import', 'export', 'both']).default('both'),
+    /** Default kinds imported from external packages when the caller omits them. */
+    importKinds: Schema.array(Schema.string()).default(['identity', 'continuity', 'note']),
+    /** Session sync master switch (human-controlled). */
+    sessionSyncEnabled: Schema.boolean().default(false),
+    /** Selfhost source id used as the NAS sync target. */
+    sessionSyncSource: Schema.string().default(''),
+    /** Auto-sync newly finished turns of open sessions. */
+    sessionAutoSync: Schema.boolean().default(false),
+    /** Default sync target: local | nas. */
+    sessionSyncTarget: Schema.union(['local', 'nas']).default('local'),
+    /** Mirror memory saves to NAS (kb-server v3) — best effort with pending replay. */
+    nasSync: Schema.object({
+      enabled: Schema.boolean().default(false),
+      sourceId: Schema.string().default(''),
     }),
   }),
 })
@@ -895,7 +905,7 @@ async function routeRequest(ctx, request) {
   }
 
   // ---------- tiered memory API ----------
-  if (op?.startsWith('memory-') || op?.startsWith('wb-')) {
+  if (op?.startsWith('memory-') || op?.startsWith('import-') || op?.startsWith('session-') || op?.startsWith('nas-')) {
     return memoryRoute(ctx, request, op)
   }
 
@@ -1630,143 +1640,519 @@ async function uploadToKnowledgeBase(ctx, request) {
   return okPayload({ path: nodePath.basename(target), source: source.id, sourceName: source.name, size })
 }
 
-// ---------- memory + workbuddy HTTP API ----------
+// ---------- memory + external import HTTP API ----------
 
-/** WorkBuddy home directory candidates for the memory bridge. */
-const WORKBUDDY_HOME = `${(typeof process !== 'undefined' ? process.env?.HOME : undefined) ?? ''}/.workbuddy`
+/** Directories treated as identity/context layers inside an external package. */
+const EXTERNAL_IDENTITY_FILES = new Set(['SOUL.md', 'IDENTITY.md', 'USER.md', 'BOOTSTRAP.md'])
+const EXTERNAL_CONTINUITY_FILES = new Set([
+  'readme.md', '项目全景与决策记录.md', '项目全景.md', '决策记录.md',
+  'workbuddy-接续指引.md', '接续指引.md', 'handover.md', 'continuation.md',
+  'context.md', 'summary.md', '概述.md', '背景.md',
+])
+const EXTERNAL_CHAT_MARKERS = [/完整对话/, /对话记录/, /conversation/i, /chat[-_ ]?log/i, /transcript/i]
+/** Continuity-package directories commonly seen in agent exports. */
+const CONTINUITY_DIR_PATTERNS = [/上下文与记忆/, /记忆/, /context/i, /memory/i, /handover/i]
+const CODE_DIR_PATTERNS = [/代码仓库/, /code/i, /src/i, /项目文件/, /repo/i]
 
-async function workbuddyStatus() {
-  const nodeFs = (await import('node:fs')).default
-  const nodePath = (await import('node:path')).default
-  const home = WORKBUDDY_HOME
-  const stat = await nodeFs.promises.stat(home).catch(() => undefined)
-  if (stat === undefined || !stat.isDirectory()) return { available: false, home }
-  const personal = []
-  try {
-    for (const entry of await nodeFs.promises.readdir(home, { withFileTypes: true })) {
-      if (entry.isDirectory() && /-personal$/.test(entry.name)) personal.push(entry.name)
-    }
-  } catch {}
-  const memoryDir = nodePath.join(home, 'memory')
-  let memoryFiles = 0
-  try {
-    memoryFiles = (await nodeFs.promises.readdir(memoryDir)).filter(name => name.endsWith('.md')).length
-  } catch {}
-  const personalFiles = []
-  for (const dir of personal) {
-    try {
-      const files = (await nodeFs.promises.readdir(nodePath.join(home, dir))).filter(name => name.endsWith('.md'))
-      personalFiles.push({ dir, files })
-    } catch {}
-  }
-  return { available: true, home, personal, personalFiles, memoryFiles }
+/** Classify one markdown file found in an external folder. */
+function classifyExternalFile(relPath, fileName, sizeBytes) {
+  const lower = fileName.toLowerCase()
+  if (EXTERNAL_IDENTITY_FILES.has(fileName)) return 'identity'
+  const stem = fileName.replace(/\.md$/i, '')
+  const isRootLevel = !relPath.includes('/')
+  // README/接续指引 只有在包根目录才是接续文档；子目录里的（代码仓库、运营文档各自
+  // 的 README）按普通笔记处理，避免出现三条同名「README」
+  const isContinuityName = EXTERNAL_CONTINUITY_FILES.has(lower) || EXTERNAL_CONTINUITY_FILES.has(fileName)
+  if (isContinuityName && (isRootLevel || sizeBytes < 40 * 1024 && CONTINUITY_DIR_PATTERNS.some(rx => rx.test(relPath)))) return 'continuity'
+  if (EXTERNAL_CHAT_MARKERS.some(rx => rx.test(stem))) return 'chat'
+  // large documents are archives, not memory notes
+  if (sizeBytes > 120 * 1024) return 'archive'
+  if (CODE_DIR_PATTERNS.some(rx => rx.test(relPath))) return 'project'
+  return 'note'
 }
 
-/** Import WorkBuddy Markdown memories into the workbuddy/ memory subtree (non-destructive). */
-async function workbuddyImport(ctx) {
-  const status = await workbuddyStatus()
-  if (!status.available) return fail(409, 'wb-missing', `WorkBuddy home not found at ${status.home}`)
-  const resolved = await memoryRoot(ctx)
-  if (resolved === undefined) return fail(409, 'memory-unavailable', 'memory storage unavailable')
+/** Extract a concise summary from a continuity/decision document: prefer the section list + key facts. */
+function digestContinuityDoc(content, maxChars = 1200) {
+  const lines = content.split('\n')
+  const headings = lines.filter(l => /^#{1,3}\s+/.test(l)).slice(0, 14).map(l => l.replace(/^#+\s+/, '').trim())
+  // take the first non-heading paragraph block as the opening statement
+  let opening = ''
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim()
+    if (line.length === 0 || /^#{1,6}\s/.test(line) || /^>/.test(line) || /^\|/.test(line)) continue
+    opening = line
+    break
+  }
+  const parts = []
+  if (opening) parts.push(opening.slice(0, 400))
+  if (headings.length > 0) parts.push(`章节: ${headings.join(' / ')}`)
+  let out = parts.join('\n')
+  if (out.length > maxChars) out = out.slice(0, maxChars) + '…'
+  return out
+}
+
+/** Scan a folder recursively (bounded) collecting .md/.txt/.markdown candidates. */
+async function scanExternalFolder(rootDir) {
   const nodePath = (await import('node:path')).default
   const nodeFs = (await import('node:fs')).default
-  const targetDir = nodePath.resolve(resolved.root, MEMORY_WORKBUDDY_DIR)
-  await nodeFs.promises.mkdir(targetDir, { recursive: true })
-  const snapshot = await snapshotMemory(ctx)
-  const imported = []
-  const seen = new Set()
-  async function importFile(absolutePath, category) {
-    const base = nodePath.basename(absolutePath)
-    if (seen.has(base)) return
-    seen.add(base)
-    const content = await nodeFs.promises.readFile(absolutePath, 'utf8').catch(() => undefined)
-    if (typeof content !== 'string' || content.trim().length === 0) return
-    // Identity-layer files stay untouched in place; we import a read-only copy.
-    const identity = ['SOUL.md', 'IDENTITY.md', 'USER.md', 'BOOTSTRAP.md'].includes(base)
-    const parsed = parseMemoryDocument(content)
-    const title = typeof parsed.meta.title === 'string' ? parsed.meta.title : base.replace(/\.md$/, '')
-    const stamp = new Date().toISOString().slice(0, 10)
-    const outName = `${stamp}-${category}-${base}`
-    const outMeta = {
-      title,
-      tier: 'workbuddy',
-      source: 'workbuddy',
-      category: identity ? 'identity' : category,
-      'read-only': true,
-      'imported-from': absolutePath,
-      ...(Array.isArray(parsed.meta.keywords) ? { keywords: parsed.meta.keywords } : {}),
-    }
-    const target = nodePath.join(targetDir, outName)
-    for (let index = 1; index < 1000; index += 1) {
-      try {
-        await nodeFs.promises.access(target, nodeFs.constants.F_OK)
-        target = nodePath.join(targetDir, `${stamp}-${category}-${base.replace(/\.md$/, '')} (${index}).md`)
-      } catch {
-        break
+  const found = []
+  async function walk(dir, depth) {
+    if (depth > 6 || found.length > 400) return
+    let entries
+    try { entries = await nodeFs.promises.readdir(dir, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules') continue
+      const abs = nodePath.join(dir, entry.name)
+      if (entry.isDirectory()) {
+        // skip heavy code trees but remember them for the plan
+        await walk(abs, depth + 1)
+      } else if (entry.isFile() && /\.(md|markdown|txt)$/i.test(entry.name)) {
+        const stat = await nodeFs.promises.stat(abs).catch(() => undefined)
+        const rel = nodePath.relative(rootDir, abs).split(nodePath.sep).join('/')
+        found.push({ absolute: abs, rel, name: entry.name, size: stat?.size ?? 0 })
       }
     }
-    await nodeFs.promises.writeFile(target, memoryDocument(outMeta, parsed.body), 'utf8')
-    imported.push(nodePath.basename(target))
   }
-  for (const { dir, files } of status.personalFiles ?? []) {
-    for (const file of files) {
-      await importFile(nodePath.join(status.home, dir, file), 'personal')
+  await walk(rootDir, 0)
+  return found
+}
+
+/** Build the import plan (classification + generated titles) without writing anything. */
+async function externalImportPlan(ctx, sourceDir) {
+  const nodePath = (await import('node:path')).default
+  const nodeFs = (await import('node:fs')).default
+  const stat = await nodeFs.promises.stat(sourceDir).catch(() => undefined)
+  if (stat === undefined || !stat.isDirectory()) return { error: `folder not found: ${sourceDir}` }
+  const files = await scanExternalFolder(sourceDir)
+  const plan = { sourceDir, files: [], package: false, chatFiles: [], continuityFiles: [], notes: [], archives: [], projectFiles: 0, identityFiles: [] }
+  // continuity-package detection: README + (决策/指引/对话) signatures
+  const hasReadme = files.some(f => /^readme\.md$/i.test(f.name))
+  const hasContinuity = files.some(f => classifyExternalFile(f.rel, f.name, f.size) === 'continuity')
+  const hasChat = files.some(f => classifyExternalFile(f.rel, f.name, f.size) === 'chat')
+  plan.package = hasReadme && (hasContinuity || hasChat)
+  const seenTitles = new Set()
+  for (const file of files) {
+    const kind = classifyExternalFile(file.rel, file.name, file.size)
+    if (kind === 'project') { plan.projectFiles += 1; continue }
+    let title = file.name.replace(/\.(md|markdown|txt)$/i, '')
+    // 同名去重：包内出现同名标题时，用父文件夹名区分（README → 代码仓库 · README）
+    if (!seenTitles.has(title)) seenTitles.add(title)
+    else {
+      const parent = file.rel.includes('/') ? file.rel.slice(0, file.rel.lastIndexOf('/')).split('/').pop() : ''
+      title = parent ? `${parent} · ${title}` : title
+      let n = 2
+      while (seenTitles.has(title)) { title = `${parent ? parent + ' · ' : ''}${file.name.replace(/\.(md|markdown|txt)$/i, '')} (${n})`; n += 1 }
+      seenTitles.add(title)
     }
+    let summary = ''
+    let keywords = []
+    const content = await nodeFs.promises.readFile(file.absolute, 'utf8').catch(() => '')
+    if (content) {
+      const parsed = parseMemoryDocument(content)
+      if (typeof parsed.meta.title === 'string' && parsed.meta.title.trim()) title = parsed.meta.title.trim()
+      if (Array.isArray(parsed.meta.keywords)) keywords = parsed.meta.keywords.slice(0, 8)
+      if (kind === 'continuity' || kind === 'identity') summary = digestContinuityDoc(parsed.body)
+      else summary = parsed.body.replace(/\s+/g, ' ').trim().slice(0, 160)
+    }
+    const entry = { ...file, kind, title, summary, keywords }
+    if (kind === 'chat') plan.chatFiles.push(entry)
+    else if (kind === 'continuity') plan.continuityFiles.push(entry)
+    else if (kind === 'identity') plan.identityFiles.push(entry)
+    else if (kind === 'archive') plan.archives.push(entry)
+    else plan.notes.push(entry)
   }
-  const memoryDir = nodePath.join(status.home, 'memory')
-  try {
-    for (const file of await nodeFs.promises.readdir(memoryDir)) {
-      if (file.endsWith('.md')) await importFile(nodePath.join(memoryDir, file), 'memory')
+  return plan
+}
+
+/** Execute an import: write memory notes for non-chat files; big chat/archive files
+ *  are copied into the knowledge source as searchable full-text assets. */
+async function externalImportExecute(ctx, sourceDir, options) {
+  const nodePath = (await import('node:path')).default
+  const nodeFs = (await import('node:fs')).default
+  const plan = await externalImportPlan(ctx, sourceDir)
+  if (plan.error !== undefined) return fail(404, 'import-folder-missing', plan.error)
+  const resolved = await memoryRoot(ctx)
+  if (resolved === undefined) return fail(409, 'memory-unavailable', 'memory storage unavailable')
+  const stamp = new Date().toISOString().slice(0, 10)
+  const pkgName = nodePath.basename(nodePath.resolve(sourceDir))
+  const externalDir = nodePath.resolve(resolved.root, 'external', pkgName)
+  await nodeFs.promises.mkdir(externalDir, { recursive: true })
+  const snapshot = await snapshotMemory(ctx)
+  const written = []
+  const assets = []
+  const selected = (tierFilterKinds) => {
+    const all = [...plan.identityFiles, ...plan.continuityFiles, ...plan.notes, ...plan.archives, ...plan.chatFiles]
+    return all.filter(entry => tierFilterKinds.includes(entry.kind))
+  }
+  const importAsNote = async (entry) => {
+    const content = await nodeFs.promises.readFile(entry.absolute, 'utf8').catch(() => '')
+    if (!content.trim()) return
+    const isContinuity = entry.kind === 'continuity' || entry.kind === 'identity'
+    const body = isContinuity
+      ? `${digestContinuityDoc(content, 2400)}\n\n---\n\n<details><summary>原文全文（点击展开）</summary>\n\n${content}\n\n</details>`
+      : content
+    const title = `${pkgName} · ${entry.title}`
+    const meta = {
+      title,
+      tier: 'workspace',
+      source: 'external-import',
+      kind: entry.kind,
+      package: pkgName,
+      'imported-from': entry.absolute,
+      'read-only': true,
+      keywords: entry.keywords.length > 0 ? entry.keywords : [pkgName, entry.kind],
+      summary: entry.summary.slice(0, 200),
     }
-  } catch {}
+    const outName = `${stamp}-${entry.kind}-${entry.name}`
+    let target = nodePath.join(externalDir, outName)
+    for (let index = 1; index < 500; index += 1) {
+      try { await nodeFs.promises.access(target, nodeFs.constants.F_OK) } catch { break }
+      target = nodePath.join(externalDir, `${stamp}-${entry.kind}-${entry.name.replace(/\.md$/i, '')} (${index}).md`)
+    }
+    await nodeFs.promises.writeFile(target, memoryDocument(meta, body), 'utf8')
+    written.push(nodePath.basename(target))
+  }
+  const importAsAsset = async (entry) => {
+    // chat transcripts & archives: copy verbatim into the knowledge source for BM25 search
+    const nodePath2 = nodePath
+    const assetsRoot = nodePath2.resolve(resolved.source.path, 'DSH记忆-导入资产', pkgName)
+    await nodeFs.promises.mkdir(assetsRoot, { recursive: true })
+    let target = nodePath2.join(assetsRoot, entry.name)
+    for (let index = 1; index < 500; index += 1) {
+      try { await nodeFs.promises.access(target, nodeFs.constants.F_OK) } catch { break }
+      target = nodePath2.join(assetsRoot, `${stamp}-${entry.name.replace(/\.md$/i, '')} (${index}).md`)
+    }
+    await nodeFs.promises.copyFile(entry.absolute, target)
+    assets.push({ from: entry.rel, to: nodePath2.relative(resolved.source.path, target).split(nodePath2.sep).join('/') })
+    // also write a compact pointer note so the asset shows in memory lists
+    const title = `${pkgName} · ${entry.title}（全文资产）`
+    const meta = {
+      title,
+      tier: 'workspace',
+      source: 'external-import',
+      kind: entry.kind,
+      package: pkgName,
+      'imported-from': entry.absolute,
+      'read-only': true,
+      keywords: [...entry.keywords, pkgName, entry.kind, '全文资产'],
+      summary: `全文已导入知识库: ${assets[assets.length - 1].to} — 用 kb_search 检索原文`,
+    }
+    const outName = `${stamp}-${entry.kind}-${entry.name}`
+    let noteTarget = nodePath2.join(externalDir, outName)
+    for (let index = 1; index < 500; index += 1) {
+      try { await nodeFs.promises.access(noteTarget, nodePath2.constants.F_OK) } catch { break }
+      noteTarget = nodePath2.join(externalDir, `${stamp}-${entry.kind}-${entry.name.replace(/\.md$/i, '')} (${index}).md`)
+    }
+    await nodeFs.promises.writeFile(noteTarget, memoryDocument(meta, meta.summary), 'utf8')
+    written.push(nodePath2.basename(noteTarget))
+  }
+  const kinds = Array.isArray(options?.kinds) && options.kinds.length > 0
+    ? options.kinds
+    : ['identity', 'continuity', 'note']
+  for (const entry of selected(kinds)) {
+    if (entry.kind === 'chat' || entry.kind === 'archive') await importAsAsset(entry)
+    else await importAsNote(entry)
+  }
   searchIndex.delete(indexKey(resolved.source))
   memoryIndexCache.clear()
-  ctx.logger?.info?.(`dsh-super-kb: imported ${imported.length} workbuddy memories`)
-  return okPayload({ imported, count: imported.length, snapshot: snapshot !== undefined ? nodePath.basename(snapshot) : undefined })
+  ctx.logger?.info?.(`dsh-super-kb: external import from ${sourceDir}: ${written.length} notes, ${assets.length} assets`)
+  return okPayload({
+    package: pkgName,
+    importedNotes: written,
+    notesCount: written.length,
+    assets,
+    assetsCount: assets.length,
+    snapshot: snapshot !== undefined ? nodePath.basename(snapshot) : undefined,
+  })
 }
 
-/** Export DSH memories into ~/.workbuddy/memory/dsh-export/ with sharding keywords line (additive only). */
-async function workbuddyExport(ctx, request) {
-  const status = await workbuddyStatus()
-  if (!status.available) return fail(409, 'wb-missing', `WorkBuddy home not found at ${status.home}`)
-  const cfg = memoryConfig()
-  if (cfg.workbuddyDirection === 'import') return fail(409, 'wb-direction', 'workbuddy direction is set to import-only')
-  let body = {}
+// ---------- session sync: whole-session handover archives ----------
+
+const DSH_SESSIONS_ROOT = `${(typeof process !== 'undefined' ? process.env?.HOME : undefined) ?? ''}/.dsh/sessions`
+const DSH_PROJCACHE_DIR = `${(typeof process !== 'undefined' ? process.env?.HOME : undefined) ?? ''}/.dsh/storages/session_projcache/sessions`
+const SYNC_ARCHIVE_DIR = 'DSH会话归档'
+
+/** Deep-find the first string value under the given key (projcache shapes vary). */
+function deepFindString(value, key, depth = 0) {
+  if (depth > 8 || value === null || typeof value !== 'object') return undefined
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = deepFindString(item, key, depth + 1)
+      if (hit !== undefined) return hit
+    }
+    return undefined
+  }
+  for (const [k, v] of Object.entries(value)) {
+    if (k === key && typeof v === 'string' && v.trim().length > 0) return v
+    const hit = deepFindString(v, key, depth + 1)
+    if (hit !== undefined) return hit
+  }
+  return undefined
+}
+
+/** Every DSH session on this machine: id, human title, cwd, dates, transcript size. */
+async function listDshSessions() {
+  const nodeFs = (await import('node:fs')).default
+  const nodePath = (await import('node:path')).default
+  const out = []
+  let roots = []
+  try { roots = (await nodeFs.promises.readdir(DSH_SESSIONS_ROOT, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => nodePath.join(DSH_SESSIONS_ROOT, e.name)) } catch { return out }
+  for (const root of roots) {
+    let entries = []
+    try { entries = await nodeFs.promises.readdir(root, { withFileTypes: true }) } catch { continue }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || !entry.name.startsWith('session-')) continue
+      const dir = nodePath.join(root, entry.name)
+      const zstdPath = nodePath.join(dir, 'session.v4.jsonl.zstd')
+      const stat = await nodeFs.promises.stat(zstdPath).catch(() => undefined)
+      if (stat === undefined) continue
+      const id = entry.name.slice('session-'.length)
+      let meta = {}
+      try { meta = JSON.parse(await nodeFs.promises.readFile(nodePath.join(DSH_PROJCACHE_DIR, `${entry.name}.json`), 'utf8')) } catch {}
+      // projcache 里 title 常是 {ver,seq,val:'...'} 对象：深找 title 的值，对象则抽 val
+      const findValue = (node, key, d = 0) => {
+        if (d > 8 || node === null || typeof node !== 'object') return undefined
+        if (Array.isArray(node)) { for (const x of node) { const hit = findValue(x, key, d + 1); if (hit !== undefined) return hit } return undefined }
+        for (const [k, v] of Object.entries(node)) {
+          if (k === key) return v
+          const hit = findValue(v, key, d + 1)
+          if (hit !== undefined) return hit
+        }
+        return undefined
+      }
+      const rawTitle = findValue(meta, 'title') ?? findValue(meta, 'titleInput')
+      const titleVal = typeof rawTitle === 'string' ? rawTitle : (rawTitle && typeof rawTitle === 'object' ? (typeof rawTitle.val === 'string' ? rawTitle.val : findValue(rawTitle, 'val')) : undefined)
+      out.push({
+        id,
+        title: (typeof titleVal === 'string' && titleVal.trim()) ? titleVal.trim() : '未命名会话',
+        cwd: deepFindString(meta, 'cwd') ?? '',
+        created: deepFindString(meta, 'createdAt') ?? undefined,
+        updated: stat.mtime.toISOString(),
+        bytes: stat.size,
+      })
+    }
+  }
+  out.sort((a, b) => String(b.updated).localeCompare(String(a.updated)))
+  return out
+}
+
+/** Find the transcript file for one session id. */
+async function findSessionFile(sessionId) {
+  const nodeFs = (await import('node:fs')).default
+  const nodePath = (await import('node:path')).default
+  let roots = []
+  try { roots = (await nodeFs.promises.readdir(DSH_SESSIONS_ROOT, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => nodePath.join(DSH_SESSIONS_ROOT, e.name)) } catch { return undefined }
+  for (const root of roots) {
+    const candidate = nodePath.join(root, `session-${sessionId}`, 'session.v4.jsonl.zstd')
+    const stat = await nodeFs.promises.stat(candidate).catch(() => undefined)
+    if (stat !== undefined) return { path: candidate, stat }
+  }
+  return undefined
+}
+
+/** DSH session files are CONCATENATED zstd frames (appended per write batch).
+ *  zstdDecompressSync only decodes the first frame — split on frame magic and
+ *  decode every piece, then concatenate. */
+async function zstdDecompressAll(nodeZlib, buf) {
+  const MAGIC = [0x28, 0xB5, 0x2F, 0xFD]
+  const offsets = []
+  for (let i = 0; i <= buf.length - 4; i += 1) {
+    if (buf[i] === MAGIC[0] && buf[i + 1] === MAGIC[1] && buf[i + 2] === MAGIC[2] && buf[i + 3] === MAGIC[3]) offsets.push(i)
+  }
+  if (offsets.length === 0) offsets.push(0)
+  offsets.push(buf.length)
+  let text = ''
+  for (let k = 0; k < offsets.length - 1; k += 1) {
+    const piece = buf.subarray(offsets[k], offsets[k + 1])
+    try {
+      text += nodeZlib.zstdDecompressSync(piece).toString('utf8')
+    } catch {
+      // 尾部残帧或非 frame 数据：跳过
+    }
+  }
+  return text
+}
+
+/** Transcribe one session's zstd JSONL into readable Markdown (User/Assistant blocks). */
+async function transcribeSession(sessionId) {
+  const nodeZlib = (await import('node:zlib')).default
+  const found = await findSessionFile(sessionId)
+  if (found === undefined) return { error: `session not found: ${sessionId}` }
+  let text
   try {
-    body = await request.json()
-  } catch {}
+    text = await zstdDecompressAll(nodeZlib, await (await import('node:fs')).default.promises.readFile(found.path))
+  } catch (error) {
+    return { error: `session decompress failed: ${error?.message ?? error}` }
+  }
+  const parts = []
+  let messages = 0
+  let firstUser = ''
+  let lastAssistant = ''
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let event
+    try { event = JSON.parse(line) } catch { continue }
+    if (event?.type !== 'user/message' && event?.type !== 'assistant/message') continue
+    const who = event.type === 'user/message' ? 'User' : 'Assistant'
+    // v4 格式：消息体在 data.content（块数组）；跳过审批等系统噪音
+    if (who === 'User' && event.data?.source?.kind === 'user-approval') continue
+    const raw = event.data?.message ?? event.data?.content ?? event.data
+    const body = messageTextOf(Array.isArray(raw) ? { content: raw } : raw)
+    if (body.trim().length === 0) continue
+    parts.push(`## ${who}\n\n${body.trim()}`)
+    messages += 1
+    if (who === 'User' && firstUser.length === 0) firstUser = body.trim().slice(0, 300)
+    if (who === 'Assistant') lastAssistant = body.trim().slice(-500)
+  }
+  let body = parts.join('\n\n---\n\n')
+  const MAX = 4 * 1024 * 1024
+  let truncated = false
+  if (body.length > MAX) { body = `${body.slice(0, MAX)}\n\n…（超出部分已截断，原文保留在本机会话库）`; truncated = true }
+  return { body, messages, truncated, firstUser, lastAssistant, updated: found.stat.mtime.toISOString() }
+}
+
+/** Safe folder name for one session archive. */
+function sessionDirName(session, stamp) {
+  const safe = String(session.title ?? '未命名会话').replace(/[/\\:*?"<>|\n\r]/g, '_').slice(0, 60).trim() || '未命名会话'
+  return `${stamp} · ${safe}`
+}
+
+/** Collect memory notes that belong to one session (session tier + matching meta). */
+async function sessionMemoryDigest(ctx, sessionId, session) {
+  const nodeFs = (await import('node:fs')).default
+  const nodePath = (await import('node:path')).default
   const resolved = await memoryRoot(ctx)
-  if (resolved === undefined) return fail(409, 'memory-unavailable', 'memory storage unavailable')
+  const lines = []
+  if (resolved !== undefined) {
+    const dirs = [nodePath.join(resolved.root, 'sessions', `session-${sessionId}`), nodePath.join(resolved.root, 'session', `session-${sessionId}`)]
+    for (const dir of dirs) {
+      let files = []
+      try { files = (await nodeFs.promises.readdir(dir)).filter(name => name.endsWith('.md')) } catch { continue }
+      for (const file of files) {
+        const content = await nodeFs.promises.readFile(nodePath.join(dir, file), 'utf8').catch(() => '')
+        const parsed = parseMemoryDocument(content)
+        lines.push(`### ${typeof parsed.meta.title === 'string' ? parsed.meta.title : file}\n\n${parsed.body.trim().slice(0, 2000)}`)
+      }
+      if (files.length > 0) break
+    }
+  }
+  const head = `# 记忆与决策 · ${session.title}\n\n> 本会话关联的记忆条目。新机器上可通过「导入交接包」恢复。\n`
+  if (lines.length === 0) return `${head}\n本会话没有独立的会话档记忆条目。\n`
+  return `${head}\n${lines.join('\n\n')}\n`
+}
+
+/** Build + write one session's handover folder to a local or NAS target. */
+async function syncOneSession(ctx, session, target, targetSource) {
   const nodePath = (await import('node:path')).default
   const nodeFs = (await import('node:fs')).default
-  const targetDir = nodePath.join(status.home, 'memory', 'dsh-export')
-  await nodeFs.promises.mkdir(targetDir, { recursive: true })
-  const snapshot = await snapshotMemory(ctx)
-  const cwd = typeof body?.cwd === 'string' ? body.cwd : undefined
-  const memories = await listMemories(ctx, cwd)
-  const selected = memories.filter(item => item.tier !== 'workbuddy' && typeof item.supersededBy !== 'string')
-  const exported = []
-  for (const item of selected) {
-    const read = await readMemoryFile(ctx, item.path)
-    if (read.error !== undefined) continue
-    const doc = shardedDocument({ ...read.meta, 'exported-by': 'dsh-super-kb' }, read.body)
-    const safeName = `${item.tier}-${item.file}`.replace(/[^a-zA-Z0-9_.-]/g, '_')
-    const target = nodePath.join(targetDir, safeName)
-    // Additive only: existing files are never rewritten.
-    let finalTarget = target
-    for (let index = 1; index < 1000; index += 1) {
+  const stamp = String(session.updated ?? '').slice(0, 10)
+  const dirName = sessionDirName(session, stamp)
+  const transcript = await transcribeSession(session.id)
+  if (transcript.error !== undefined) return { ok: false, id: session.id, error: transcript.error }
+  const memoryDoc = await sessionMemoryDigest(ctx, session.id, session)
+  const digest = `**任务起点**：${transcript.firstUser || '（无）'}\n\n**最新进展**：${transcript.lastAssistant ? transcript.lastAssistant.slice(-300) : '（无）'}\n`
+  const readme = [
+    `# ${session.title}`,
+    '',
+    `> DSH 会话交接包 · 自动生成于 ${new Date().toISOString()}`,
+    `> 会话 ID：session-${session.id} · 消息 ${transcript.messages} 条 · 最后活动 ${stamp}`,
+    '',
+    '## 接续摘要（新会话先读这里）',
+    '',
+    digest,
+    '',
+    '## 文件导航',
+    '',
+    '- `完整对话.md` — 全量对话原文（细节以它为准）',
+    '- `记忆与决策.md` — 本会话关联的记忆条目',
+    '',
+    '## 新机器无缝衔接',
+    '',
+    '1. 知识库添加来源，指向本归档所在文件夹（本地）或 NAS 地址（自建知识库来源）',
+    '2. 记忆 → 更多操作 → 导入交接包 → 选择本文件夹 → 导入',
+    '3. 新会话说「继续「' + session.title + '」」即可接上进度',
+  ].join('\n')
+  const files = [
+    { name: 'README.md', content: readme },
+    { name: '完整对话.md', content: `# ${session.title} · 完整对话\n\n> ${transcript.messages} 条消息${transcript.truncated ? ' · 已截断' : ''}\n\n---\n\n${transcript.body}\n` },
+    { name: '记忆与决策.md', content: memoryDoc },
+  ]
+  const results = []
+  if (target === 'nas') {
+    if (targetSource === undefined) return { ok: false, id: session.id, error: 'no selfhost source configured for NAS sync' }
+    for (const file of files) {
+      let response
       try {
-        await nodeFs.promises.access(finalTarget, nodeFs.constants.F_OK)
-        finalTarget = nodePath.join(targetDir, safeName.replace(/\.md$/, '') + ` (${index}).md`)
+        response = await selfhostFetch(targetSource, 'write', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ site: targetSource.site, path: `${SYNC_ARCHIVE_DIR}/${dirName}/${file.name}`, content: file.content, op: 'write' }),
+        })
       } catch {
-        break
+        return { ok: false, id: session.id, error: 'kb-server unreachable' }
       }
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.ok === false) {
+        const reason = data.error === 'write-disabled'
+          ? `NAS 站点「${targetSource.site}」的写入开关是关闭的——请在来源卡片上打开「可写」后再同步（人控制）`
+          : (data.reason ?? data.error ?? `kb-server ${response.status}`)
+        return { ok: false, id: session.id, error: reason }
+      }
+      results.push(file.name)
     }
-    await nodeFs.promises.writeFile(finalTarget, doc, { flag: 'wx' })
-    exported.push(nodePath.basename(finalTarget))
+  } else {
+    const resolved = await memoryRoot(ctx)
+    const sources = await readSourcesFromConfig(ctx)
+    const source = sources.find(candidate => candidate.type === 'local')
+    if (source === undefined) return { ok: false, id: session.id, error: 'no local source for session archive' }
+    void resolved
+    const root = nodePath.resolve(source.path, SYNC_ARCHIVE_DIR, dirName)
+    await nodeFs.promises.mkdir(root, { recursive: true })
+    for (const file of files) {
+      await nodeFs.promises.writeFile(nodePath.join(root, file.name), file.content, 'utf8')
+      results.push(file.name)
+    }
+    searchIndex.delete(indexKey(source))
   }
-  ctx.logger?.info?.(`dsh-super-kb: exported ${exported.length} memories to workbuddy dsh-export`)
-  return okPayload({ exported, count: exported.length, destination: targetDir, snapshot: snapshot !== undefined ? nodePath.basename(snapshot) : undefined })
+  // 更新同步索引（本地），两种目标都记录
+  try {
+    const sources = await readSourcesFromConfig(ctx)
+    const source = sources.find(candidate => candidate.type === 'local')
+    if (source !== undefined) {
+      const indexPath = nodePath.resolve(source.path, SYNC_ARCHIVE_DIR, '.sync-index.json')
+      let index = {}
+      try { index = JSON.parse(await nodeFs.promises.readFile(indexPath, 'utf8')) } catch {}
+      index[session.id] = { title: session.title, dirName, syncedAt: new Date().toISOString(), target, files: results.length }
+      await nodeFs.promises.writeFile(indexPath, JSON.stringify(index, null, 2), 'utf8')
+    }
+  } catch {}
+  return { ok: true, id: session.id, title: session.title, dirName, files: results, target }
+}
+
+/** Sync a set of sessions (or all) to the chosen target. */
+async function syncSessions(ctx, body) {
+  const all = await listDshSessions()
+  if (all.length === 0) return fail(404, 'no-sessions', 'no DSH sessions found on this machine')
+  const target = body?.target === 'nas' ? 'nas' : 'local'
+  let targetSource
+  if (target === 'nas') {
+    const sources = await readSourcesFromConfig(ctx)
+    const wanted = typeof body?.sourceId === 'string' && body.sourceId.length > 0 ? body.sourceId : undefined
+    targetSource = sources.find(candidate => candidate.id === wanted && candidate.type === 'selfhost' && candidate.site)
+      ?? sources.find(candidate => candidate.type === 'selfhost' && candidate.site)
+    if (targetSource === undefined) return fail(409, 'no-selfhost-site', 'no selfhost source with a site configured — add one in sources first')
+  }
+  const ids = Array.isArray(body?.ids) && body.ids.length > 0 ? body.ids : (body?.all === true ? all.map(s => s.id) : undefined)
+  if (ids === undefined) return fail(400, 'bad-body', 'ids[] or all=true required')
+  const results = []
+  for (const id of ids) {
+    const session = all.find(candidate => candidate.id === id)
+    if (session === undefined) { results.push({ ok: false, id, error: 'session not found' }); continue }
+    results.push(await syncOneSession(ctx, session, target, targetSource))
+  }
+  const okCount = results.filter(r => r.ok).length
+  ctx.logger?.info?.(`dsh-super-kb: session sync ${okCount}/${results.length} → ${target}`)
+  return okPayload({ target, synced: okCount, failed: results.length - okCount, results })
 }
 
 /** Route /api/kb?op=memory-* and op=wb-* requests. */
@@ -1848,6 +2234,7 @@ async function memoryRoute(ctx, request, op) {
     }, content)
     if (gatePath !== undefined) await markSuperseded(ctx, gatePath, written.relativePath)
     memoryIndexCache.clear()
+    void nasMirrorSave(ctx, tier, keyForTier, title, { keywords, summary: typeof body?.summary === 'string' ? body.summary.slice(0, 200) : '', ...(tier === 'workspace' ? { cwd: keyForTier } : {}) }, content, written.relativePath).then((r) => { if (r?.queued) ctx.logger?.warn?.('dsh-super-kb: nas mirror queued', r.error) }).catch(() => {})
     return okPayload({ saved: true, path: written.relativePath, absolutePath: written.absolutePath, gate: gatePath !== undefined ? 'updated-existing' : 'created' })
   }
 
@@ -1924,18 +2311,128 @@ async function memoryRoute(ctx, request, op) {
     return okPayload({ exported, destination: targetDir, snapshot: snapshot !== undefined ? nodePath.basename(snapshot) : undefined })
   }
 
-  if (op === 'wb-status') {
-    return okPayload(await workbuddyStatus())
+  // ---------- external import (generic; replaces the old WorkBuddy-only bridge) ----------
+  if (op === 'import-plan' && request.method === 'POST') {
+    const body = await readBody()
+    const dir = typeof body?.sourceDir === 'string' && body.sourceDir.trim() ? body.sourceDir.trim() : undefined
+    if (dir === undefined) return fail(400, 'bad-body', 'sourceDir (absolute folder path) is required')
+    const plan = await externalImportPlan(ctx, dir)
+    if (plan.error !== undefined) return fail(404, 'import-folder-missing', plan.error)
+    return okPayload({ plan })
   }
 
-  if (op === 'wb-import' && request.method === 'POST') {
-    if (!cfg.workbuddyEnabled || cfg.workbuddyDirection === 'export') return fail(409, 'wb-direction', 'workbuddy import disabled in settings')
-    return workbuddyImport(ctx)
+  if (op === 'import-execute' && request.method === 'POST') {
+    const body = await readBody()
+    const dir = typeof body?.sourceDir === 'string' && body.sourceDir.trim() ? body.sourceDir.trim() : undefined
+    if (dir === undefined) return fail(400, 'bad-body', 'sourceDir (absolute folder path) is required')
+    return externalImportExecute(ctx, dir, { kinds: Array.isArray(body?.kinds) ? body.kinds : undefined })
   }
 
-  if (op === 'wb-export' && request.method === 'POST') {
-    if (!cfg.workbuddyEnabled || cfg.workbuddyDirection === 'import') return fail(409, 'wb-direction', 'workbuddy export disabled in settings')
-    return workbuddyExport(ctx, request)
+  if (op === 'memory-inject-stats') {
+    const cwd = url.searchParams.get('cwd') ?? undefined
+    const text = await buildMemoryIndex(ctx, cwd)
+    const count = text.split('\n').filter(line => line.startsWith('- (')).length
+    return okPayload({ count, chars: text.length, maxChars: memoryConfig().injectionMaxChars })
+  }
+
+  if (op === 'memory-promote' && request.method === 'POST') {
+    const body = await readBody()
+    const result = await promoteMemory(ctx, body?.path, body?.toTier, { cwd: body?.cwd })
+    if (result.error !== undefined) return fail(409, 'promote-failed', result.error)
+    memoryIndexCache.clear()
+    return okPayload(result)
+  }
+
+  if (op === 'memory-upgrade-candidates') {
+    const cwd = url.searchParams.get('cwd') ?? undefined
+    const memories = await listMemories(ctx, cwd)
+    const DECISION_WORDS = ['决定', '选型', '结论', '拍板', '否决', '决策', '必须', '纪律', '决策记录', '决策与']
+    const candidates = memories.filter((item) => {
+      if (item.supersededBy !== undefined) return false
+      if (item.tier === 'global') return false
+      const hay = `${item.title} ${item.summary} ${(item.keywords ?? []).join(' ')}`.toLowerCase()
+      const decision = DECISION_WORDS.some(word => hay.includes(word))
+      const hits = (memoryHitCounts.get(item.path) ?? 0) >= 2
+      return decision || hits
+    }).map(item => ({ path: item.path, title: item.title, tier: item.tier, reason: DECISION_WORDS.some(word => `${item.title} ${item.summary}`.toLowerCase().includes(word)) ? 'decision' : 'popular', hits: memoryHitCounts.get(item.path) ?? 0 }))
+    return okPayload({ candidates })
+  }
+
+  if (op === 'nas-sync-config' && request.method === 'POST') {
+    const body = await readBody()
+    liveConfig.memory ??= {}
+    liveConfig.memory.nasSync ??= {}
+    if (body?.enabled !== undefined) liveConfig.memory.nasSync.enabled = body.enabled === true
+    if (typeof body?.sourceId === 'string') liveConfig.memory.nasSync.sourceId = body.sourceId
+    let persisted = false
+    try {
+      await ctx.configEditor.edit(ctx.fiber.entry, (draft) => {
+        draft.memory ??= {}
+        draft.memory.nasSync ??= {}
+        if (body?.enabled !== undefined) draft.memory.nasSync.enabled = body.enabled === true
+        if (typeof body?.sourceId === 'string') draft.memory.nasSync.sourceId = body.sourceId
+      })
+      persisted = true
+    } catch {}
+    return okPayload({ enabled: memoryConfig().nasSyncEnabled, sourceId: memoryConfig().nasSyncSource, persisted })
+  }
+
+  if (op === 'nas-replay' && request.method === 'POST') {
+    const result = await nasReplayPending(ctx)
+    return okPayload(result)
+  }
+
+  // ---------- session sync ----------
+  if (op === 'session-list') {
+    const sessions = await listDshSessions()
+    // 已同步徽标：读本地归档根的 .sync-index.json
+    let syncIndex = {}
+    try {
+      const nodePath = (await import('node:path')).default
+      const nodeFs = (await import('node:fs')).default
+      const sources = await readSourcesFromConfig(ctx)
+      const source = sources.find(candidate => candidate.type === 'local')
+      if (source !== undefined) syncIndex = JSON.parse(await nodeFs.promises.readFile(nodePath.resolve(source.path, SYNC_ARCHIVE_DIR, '.sync-index.json'), 'utf8'))
+    } catch {}
+    return okPayload({
+      sessions,
+      syncIndex,
+      enabled: memoryConfig().sessionSyncEnabled,
+      autoSync: memoryConfig().sessionAutoSync,
+      target: memoryConfig().sessionSyncTarget,
+    })
+  }
+
+  if (op === 'session-sync' && request.method === 'POST') {
+    const body = await readBody()
+    return syncSessions(ctx, body)
+  }
+
+  if (op === 'session-sync-toggle' && request.method === 'POST') {
+    const body = await readBody()
+    liveConfig.memory ??= {}
+    if (body?.enabled !== undefined) liveConfig.memory.sessionSyncEnabled = body.enabled === true
+    if (body?.autoSync !== undefined) liveConfig.memory.sessionAutoSync = body.autoSync === true
+    if (typeof body?.target === 'string' && ['local', 'nas'].includes(body.target)) liveConfig.memory.sessionSyncTarget = body.target
+    if (typeof body?.sourceId === 'string') liveConfig.memory.sessionSyncSource = body.sourceId
+    // patch 覆盖型 profile 下持久化可能被拒：内存即时生效，尽力持久化
+    let persisted = false
+    try {
+      await ctx.configEditor.edit(ctx.fiber.entry, (draft) => {
+        draft.memory ??= {}
+        if (body?.enabled !== undefined) draft.memory.sessionSyncEnabled = body.enabled === true
+        if (body?.autoSync !== undefined) draft.memory.sessionAutoSync = body.autoSync === true
+        if (typeof body?.target === 'string' && ['local', 'nas'].includes(body.target)) draft.memory.sessionSyncTarget = body.target
+        if (typeof body?.sourceId === 'string') draft.memory.sessionSyncSource = body.sourceId
+      })
+      persisted = true
+    } catch {}
+    return okPayload({
+      enabled: memoryConfig().sessionSyncEnabled,
+      autoSync: memoryConfig().sessionAutoSync,
+      target: memoryConfig().sessionSyncTarget,
+      persisted,
+    })
   }
 
   return fail(400, 'bad-op', `unknown memory op "${op}"`)
@@ -2126,6 +2623,7 @@ function registerTools(ctx) {
         ...(supersedesValue !== undefined ? { supersedes: supersedesValue } : {}),
       }, content)
       memoryIndexCache.clear()
+      void nasMirrorSave(ctx, tier, keyForTier, title, { keywords, summary: typeof args.summary === 'string' ? args.summary.slice(0, 200) : '', ...(tier === 'workspace' ? { cwd: keyForTier } : {}) }, content, written.relativePath).then((r) => { if (r?.queued) ctx.logger?.warn?.('dsh-super-kb: nas mirror queued', r.error) }).catch(() => {})
       if (supersedesValue !== undefined) {
         await markSuperseded(ctx, args.supersedes, written.relativePath)
       } else if (typeof args.updateExistingPath === 'string' && args.updateExistingPath.length > 0) {
@@ -2140,7 +2638,7 @@ function registerTools(ctx) {
     description: 'Search the tiered memory store (global, workspace, session, and imported WorkBuddy notes) with BM25 ranking. Superseded notes are hidden by default; contradicting chains are flagged so you can verify the latest value.',
     parameters: {
       query: { type: 'string', required: true, description: 'Search query; natural-language words or phrases.' },
-      tier: { type: 'string', description: 'Restrict to one tier: global | workspace | session | workbuddy. Omit to search all visible tiers.' },
+      tier: { type: 'string', description: 'Restrict to one tier: global | workspace | session | external. Omit to search all visible tiers.' },
       includeSuperseded: { type: 'boolean', description: 'Set true to include superseded (replaced) notes.' },
     },
     output: { schema: { type: 'object', properties: { hits: { type: 'array', items: { type: 'object' } }, scanned: { type: 'number' } } }, render: renderValue },
@@ -2190,7 +2688,7 @@ function registerTools(ctx) {
     description: 'Export memory notes to a folder: either a directory inside a knowledge-base local source, or an absolute local path. Creates a timestamped subfolder; never overwrites existing files.',
     parameters: {
       destination: { type: 'string', description: 'Absolute local folder path; omit to export into <memory root>/export/.' },
-      tier: { type: 'string', description: 'Export only one tier: global | workspace | session | workbuddy. Omit for all.' },
+      tier: { type: 'string', description: 'Export only one tier: global | workspace | session | external. Omit for all.' },
       format: { type: 'string', description: '"flat" copies files as-is; "sharded" adds a second-line keywords line per file for WorkBuddy hook recall (default flat).' },
     },
     output: { schema: { type: 'object', properties: { exported: { type: 'number' }, destination: { type: 'string' }, snapshot: { type: 'string' } } }, render: renderValue },
@@ -2243,6 +2741,53 @@ function registerTools(ctx) {
       const result = await restoreMemorySnapshot(ctx, args.snapshot)
       if (result.error !== undefined) throw new Error(result.error)
       return result
+    },
+  })
+
+  register({
+    name: 'memory_promote',
+    description: 'Promote a memory note to a higher tier (session/external → workspace → global) so it is injected into future sessions. The original note is kept and marked superseded (chain preserved). Requires cwd when promoting to workspace tier. Use memory-upgrade candidates (HTTP op) or your judgement to pick notes worth promoting — decision records, user preferences, project rules.',
+    parameters: {
+      path: { type: 'string', required: true, description: 'Absolute path of the memory note to promote (from memory_search results).' },
+      toTier: { type: 'string', required: true, description: 'Target tier: workspace | global.' },
+      cwd: { type: 'string', description: 'Workspace folder path; required when toTier=workspace.' },
+    },
+    output: { schema: { type: 'object', properties: { newPath: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' } } }, render: renderValue },
+    isConcurrencySafe: () => false,
+    async execute(args) {
+      const result = await promoteMemory(ctx, args.path, args.toTier, { cwd: args.cwd })
+      if (result.error !== undefined) throw new Error(result.error)
+      return result
+    },
+  })
+
+  register({
+    name: 'kb_import',
+    description: 'Import an external memory/continuity package (any folder of Markdown exports, e.g. a Kimi/WorkBuddy/ChatGPT task hand-over) into the tiered memory system. First call with execute=false to preview the classification plan (identity/continuity/note/chat/archive), then execute=true to write notes and copy full-text assets into the knowledge source for BM25 search. Continuity packages (README + decision/handover docs) produce continuation memory entries so a new session can pick up where the previous agent left off.',
+    parameters: {
+      sourceDir: { type: 'string', required: true, description: 'Absolute folder path of the exported package (e.g. /Users/you/SuperIPSW).' },
+      execute: { type: 'boolean', description: 'false (default) = preview plan only; true = perform the import.' },
+      kinds: { type: 'array', items: { type: 'string' }, description: 'Optional kind filter: identity, continuity, note, chat, archive. Defaults to identity+continuity+note (chat/archive need explicit inclusion).' },
+    },
+    output: { schema: { type: 'object', properties: { package: { type: 'string' }, notesCount: { type: 'number' }, assetsCount: { type: 'number' }, snapshot: { type: 'string' }, plan: { type: 'object' } } }, render: renderValue },
+    isConcurrencySafe: () => false,
+    async execute(args) {
+      if (args.execute === true) {
+        return externalImportExecute(ctx, args.sourceDir, { kinds: args.kinds })
+      }
+      const plan = await externalImportPlan(ctx, args.sourceDir)
+      if (plan.error !== undefined) throw new Error(plan.error)
+      const compact = {
+        sourceDir: plan.sourceDir,
+        package: plan.package,
+        identity: plan.identityFiles.map(f => f.name),
+        continuity: plan.continuityFiles.map(f => ({ name: f.name, title: f.title })),
+        notes: plan.notes.map(f => f.name),
+        chats: plan.chatFiles.map(f => ({ name: f.name, size: f.size })),
+        archives: plan.archives.map(f => f.name),
+        projectFilesSkipped: plan.projectFiles,
+      }
+      return compact
     },
   })
 
@@ -2396,14 +2941,18 @@ const MEMORY_MAX_CHARS = 60000
 function memoryConfig() {
   const raw = liveConfig?.memory
   const cfg = raw && typeof raw === 'object' ? raw : {}
-  const wb = cfg.workbuddy && typeof cfg.workbuddy === 'object' ? cfg.workbuddy : {}
   return {
     enabled: cfg.enabled !== false,
     root: typeof cfg.root === 'string' && cfg.root.trim().length > 0 ? cfg.root.trim() : 'DSH记忆',
     injectionMaxChars: Number.isFinite(cfg.injectionMaxChars) && cfg.injectionMaxChars > 200 ? cfg.injectionMaxChars : 1500,
     similarityThreshold: Number.isFinite(cfg.similarityThreshold) ? Math.min(Math.max(cfg.similarityThreshold, 0), 1) : 0.7,
-    workbuddyEnabled: wb.enabled !== false,
-    workbuddyDirection: ['import', 'export', 'both'].includes(wb.direction) ? wb.direction : 'both',
+    importKinds: Array.isArray(cfg.importKinds) && cfg.importKinds.length > 0 ? cfg.importKinds : ['identity', 'continuity', 'note'],
+    sessionSyncEnabled: cfg.sessionSyncEnabled === true,
+    sessionSyncSource: typeof cfg.sessionSyncSource === 'string' ? cfg.sessionSyncSource : '',
+    sessionAutoSync: cfg.sessionAutoSync === true,
+    sessionSyncTarget: cfg.sessionSyncTarget === 'nas' ? 'nas' : 'local',
+    nasSyncEnabled: cfg.nasSync && typeof cfg.nasSync === 'object' ? cfg.nasSync.enabled === true : false,
+    nasSyncSource: cfg.nasSync && typeof cfg.nasSync === 'object' && typeof cfg.nasSync.sourceId === 'string' ? cfg.nasSync.sourceId : '',
   }
 }
 
@@ -2540,6 +3089,7 @@ async function listMemories(ctx, cwd) {
   const bases = [
     ['global', nodePath.join(resolved.root, 'global')],
     ['workspace', nodePath.join(resolved.root, 'workspaces', workspaceSlug(cwd))],
+    ['external', nodePath.join(resolved.root, 'external')],
     [MEMORY_WORKBUDDY_DIR, nodePath.join(resolved.root, MEMORY_WORKBUDDY_DIR)],
   ]
   const sessionDirs = []
@@ -2549,7 +3099,15 @@ async function listMemories(ctx, cwd) {
       if (entry.isDirectory()) sessionDirs.push([`session:${entry.name}`, nodePath.join(sessionsRoot, entry.name)])
     }
   } catch {}
-  for (const [tier, dir] of [...bases, ...sessionDirs]) {
+  // external/ 包含子目录（每个导入包一个），需要递归收集
+  const externalRoot = nodePath.join(resolved.root, 'external')
+  const externalDirs = []
+  try {
+    for (const entry of await nodeFs.promises.readdir(externalRoot, { withFileTypes: true })) {
+      if (entry.isDirectory()) externalDirs.push([`external:${entry.name}`, nodePath.join(externalRoot, entry.name)])
+    }
+  } catch {}
+  for (const [tier, dir] of [...bases, ...externalDirs, ...sessionDirs]) {
     let files
     try {
       files = await nodeFs.promises.readdir(dir, { withFileTypes: true })
@@ -2617,6 +3175,7 @@ async function deleteMemoryFile(ctx, absolutePath) {
   const existing = await readMemoryFile(ctx, target)
   if (existing.error !== undefined) return existing
   if (existing.meta?.source === 'workbuddy') return { error: 'workbuddy-imported memories are read-only here; delete them in WorkBuddy and re-import' }
+  if (existing.meta?.source === 'external-import') return { error: 'externally imported memories are managed by the import system; remove the package via re-import instead' }
   try {
     await nodeFs.promises.unlink(target)
     searchIndex.delete(indexKey(resolved.source))
@@ -2686,16 +3245,18 @@ async function searchMemories(ctx, query, options) {
   for (const { absolute, doc, score } of ranked) {
     const rel = nodePath.relative(root, absolute).split(nodePath.sep).join('/')
     if (options?.excludeSuperseded && typeof doc.meta['superseded-by'] === 'string') continue
+    memoryHitCounts.set(absolute, (memoryHitCounts.get(absolute) ?? 0) + 1)
     hits.push({
       path: absolute,
       relPath: rel,
-      tier: rel.startsWith('global') ? 'global' : rel.startsWith('workspaces') ? 'workspace' : rel.startsWith(MEMORY_WORKBUDDY_DIR) ? 'workbuddy' : 'session',
+      tier: rel.startsWith('global') ? 'global' : rel.startsWith('workspaces') ? 'workspace' : rel.startsWith('external/') ? 'external' : rel.startsWith(MEMORY_WORKBUDDY_DIR) ? 'external' : 'session',
       title: typeof doc.meta.title === 'string' ? doc.meta.title : nodePath.basename(absolute, '.md'),
       keywords: Array.isArray(doc.meta.keywords) ? doc.meta.keywords : [],
       summary: typeof doc.meta.summary === 'string' ? doc.meta.summary : doc.body.replace(/\s+/g, ' ').slice(0, 120),
       supersedes: typeof doc.meta.supersedes === 'string' ? doc.meta.supersedes : undefined,
       supersededBy: typeof doc.meta['superseded-by'] === 'string' ? doc.meta['superseded-by'] : undefined,
       score: Math.round(score * 100) / 100,
+      hits: memoryHitCounts.get(absolute) ?? 0,
     })
     if (hits.length >= (options?.limit ?? 20)) break
   }
@@ -2810,7 +3371,7 @@ async function buildMemoryIndex(ctx, cwd) {
   const lines = ['# Tiered memory', '', 'Saved memories are available. Call `memory_search` to recall by topic and `memory_read` for the full note; save durable facts with `memory_save`.', '']
   let budget = cfg.injectionMaxChars - lines.join('\n').length
   if (budget <= 0) return ''
-  const tierOrder = { global: 0, workspace: 1, workbuddy: 2 }
+  const tierOrder = { global: 0, workspace: 1, external: 2, workbuddy: 3 }
   rows.sort((a, b) => (tierOrder[a.tier] ?? 3) - (tierOrder[b.tier] ?? 3) || String(b.updated ?? '').localeCompare(String(a.updated ?? '')))
   let included = 0
   for (const row of rows) {
@@ -2827,8 +3388,128 @@ async function buildMemoryIndex(ctx, cwd) {
   return text
 }
 
+// ---------- memory promotion: session/external → workspace → global ----------
+
+/** In-session hit counters (search popularity; resets on restart by design). */
+const memoryHitCounts = new Map()
+
+/** Promote one memory note to a higher tier: copy + supersede the original. */
+async function promoteMemory(ctx, absolutePath, toTier, options) {
+  const nodePath = (await import('node:path')).default
+  const nodeFs = (await import('node:fs')).default
+  const resolved = await memoryRoot(ctx)
+  if (resolved === undefined) return { error: 'memory storage unavailable' }
+  const root = nodePath.resolve(resolved.root)
+  const target = nodePath.resolve(String(absolutePath ?? ''))
+  if (target !== root && !target.startsWith(root + nodePath.sep)) return { error: 'path escapes the memory root' }
+  const read = await readMemoryFile(ctx, target)
+  if (read.error !== undefined) return { error: read.error }
+  if (!['workspace', 'global'].includes(toTier)) return { error: `invalid toTier: ${toTier}` }
+  const cwd = typeof options?.cwd === 'string' && options.cwd.trim() ? options.cwd.trim() : (typeof read.meta.cwd === 'string' ? read.meta.cwd : undefined)
+  if (toTier === 'workspace' && (cwd === undefined || cwd.length === 0)) return { error: 'workspace tier needs a cwd' }
+  const meta = {
+    ...read.meta,
+    tier: toTier,
+    'promoted-from': String(read.meta.tier ?? 'unknown'),
+    'promoted-at': new Date().toISOString(),
+    ...(toTier === 'workspace' ? { cwd } : {}),
+  }
+  delete meta['superseded-by']
+  const dir = await memoryTierDir(ctx, toTier, cwd)
+  const written = await writeMemoryFile(ctx, toTier, cwd ?? '', read.meta.title ?? 'Untitled', meta, read.body)
+  if (written?.error !== undefined) return { error: written.error }
+  await markSuperseded(ctx, target, written.relativePath)
+  searchIndex.delete(indexKey(resolved.source))
+  memoryIndexCache.clear()
+  ctx.logger?.info?.(`dsh-super-kb: promoted ${nodePath.basename(target)} → ${toTier}`)
+  return { newPath: written.absolutePath, from: read.meta.tier, to: toTier }
+}
+
 /** Update the supersedes chain: new note replaces an old one without deleting it. */
-async function markSuperseded(ctx, oldAbsolutePath, newRelativePath) {  const existing = await readMemoryFile(ctx, oldAbsolutePath)
+
+// ---------- NAS dual-write: best-effort mirror of memory saves ----------
+
+/** Queue file for saves that could not reach NAS yet. */
+async function pendingSyncPath(ctx) {
+  const nodePath = (await import('node:path')).default
+  const resolved = await memoryRoot(ctx)
+  if (resolved === undefined) return undefined
+  return nodePath.resolve(resolved.root, '.pending-sync.jsonl')
+}
+
+/** Resolve the selfhost source used as the NAS mirror target. */
+async function nasSyncSource(ctx) {
+  const cfg = memoryConfig()
+  if (cfg.nasSyncEnabled !== true) return undefined
+  const sources = await readSourcesFromConfig(ctx)
+  const wanted = typeof cfg.nasSyncSource === 'string' && cfg.nasSyncSource ? cfg.nasSyncSource : undefined
+  return sources.find(candidate => candidate.id === wanted && candidate.type === 'selfhost' && candidate.site)
+    ?? sources.find(candidate => candidate.type === 'selfhost' && candidate.site)
+    ?? undefined
+}
+
+/** Mirror one memory note to NAS (non-blocking failures go to the pending queue). */
+async function nasMirrorSave(ctx, tier, cwdOrSessionId, title, meta, bodyText, relativePath) {
+  const nodePath = (await import('node:path')).default
+  const source = await nasSyncSource(ctx)
+  if (source === undefined) return { skipped: true }
+  const remotePath = `DSH记忆/${relativePath}`
+  const doc = memoryDocument({ ...meta, tier, 'mirrored-at': new Date().toISOString() }, bodyText)
+  try {
+    const response = await selfhostFetch(source, 'write', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ site: source.site, path: remotePath, content: doc, op: 'write' }),
+    }, 12000)
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok || data.ok === false) throw new Error(data.reason ?? data.error ?? `HTTP ${response.status}`)
+    return { synced: true, remotePath }
+  } catch (error) {
+    try {
+      const qp = await pendingSyncPath(ctx)
+      if (qp !== undefined) {
+        const line = JSON.stringify({ path: remotePath, content: doc, at: new Date().toISOString(), error: String(error?.message ?? error) }) + '\n'
+        await (await import('node:fs')).default.promises.appendFile(qp, line, 'utf8')
+      }
+    } catch {}
+    return { queued: true, error: String(error?.message ?? error) }
+  }
+}
+
+/** Replay the pending queue against NAS (called on interval + after saves). */
+async function nasReplayPending(ctx) {
+  const nodeFs = (await import('node:fs')).default
+  const source = await nasSyncSource(ctx)
+  if (source === undefined) return { skipped: true }
+  const qp = await pendingSyncPath(ctx)
+  if (qp === undefined || !nodeFs.existsSync(qp)) return { replayed: 0 }
+  const lines = (await nodeFs.promises.readFile(qp, 'utf8')).split('\n').filter(l => l.trim())
+  const remaining = []
+  let replayed = 0
+  for (const line of lines) {
+    let job
+    try { job = JSON.parse(line) } catch { continue }
+    try {
+      const response = await selfhostFetch(source, 'write', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ site: source.site, path: job.path, content: job.content, op: 'write' }),
+      }, 12000)
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok || data.ok === false) throw new Error(data.reason ?? `HTTP ${response.status}`)
+      replayed += 1
+    } catch (error) {
+      remaining.push(JSON.stringify({ ...job, error: String(error?.message ?? error) }))
+    }
+  }
+  if (remaining.length > 0) await nodeFs.promises.writeFile(qp, remaining.map(l => l + '\n').join(''), 'utf8')
+  else await nodeFs.promises.unlink(qp).catch(() => {})
+  return { replayed, remaining: remaining.length }
+}
+
+/** Update the supersedes chain: new note replaces an old one without deleting it. */
+async function markSuperseded(ctx, oldAbsolutePath, newRelativePath) {
+  const existing = await readMemoryFile(ctx, oldAbsolutePath)
   if (existing.error !== undefined) return
   const nodePath = (await import('node:path')).default
   const nodeFs = (await import('node:fs')).default
@@ -2844,6 +3525,30 @@ async function markSuperseded(ctx, oldAbsolutePath, newRelativePath) {  const ex
     searchIndex.delete(indexKey(memory.source))
   } catch (error) {
     ctx.logger?.warn?.('dsh-super-kb: supersede marker failed', error)
+  }
+}
+
+// ---------- session sync: auto-sync scheduler (debounced) ----------
+const autoSyncDirty = new Map()
+const autoSyncTimers = new Map()
+function scheduleAutoSync(ctx) {
+  const key = 'auto'
+  if (autoSyncTimers.has(key)) return
+  autoSyncTimers.set(key, setTimeout(() => {
+    autoSyncTimers.delete(key)
+    void runAutoSync(ctx)
+  }, 90 * 1000))
+}
+async function runAutoSync(ctx) {
+  if (memoryConfig().sessionAutoSync !== true) return
+  const stale = Date.now() - 90 * 1000
+  const ids = [...autoSyncDirty.entries()].filter(([, at]) => at <= stale).map(([id]) => id)
+  for (const id of ids) autoSyncDirty.delete(id)
+  if (ids.length === 0) { if (autoSyncDirty.size > 0) scheduleAutoSync(ctx); return }
+  try {
+    await syncSessions(ctx, { ids, target: memoryConfig().sessionSyncTarget === 'nas' ? 'nas' : 'local' })
+  } catch (error) {
+    ctx.logger?.warn?.('dsh-super-kb: auto sync failed', error)
   }
 }
 
@@ -2986,6 +3691,11 @@ export async function apply(ctx, config) {
       try {
         collectSessionText(session, event)
         if (event.type !== 'turn/end') return
+        // 自动会话同步：开关开启时，turn/end 打脏标记，防抖 90s 后写交接包
+        if (memoryConfig().sessionAutoSync === true) {
+          autoSyncDirty.set(String(session.id), Date.now())
+          scheduleAutoSync(ctx)
+        }
         const buffer = turnBuffers.get(session.id)
         if (buffer === undefined || !buffer.closed || buffer.lines.length === 0) return
         turnBuffers.delete(session.id)
@@ -2998,5 +3708,8 @@ export async function apply(ctx, config) {
       }
     }), 'dsh-super-kb: session capture')
     ctx.effect(() => () => { turnBuffers.clear() }, 'dsh-super-kb: buffer cleanup')
+    // NAS pending 重放：30s 间隔，无 NAS 配置时跳过
+    const replayTimer = setInterval(() => { void nasReplayPending(ctx).catch(() => {}) }, 30 * 1000)
+    ctx.effect(() => () => { clearInterval(replayTimer) }, 'dsh-super-kb: nas replay timer')
   }
 }

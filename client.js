@@ -87,7 +87,21 @@ window.__ModuleLoader__.load({
         attachAsPathHint: 'Agent reads the original file in place',
         attachAsFileHint: 'Upload a copy as a session attachment',
         // memory view
-        memory: 'Memory', memAll: 'All', memGlobal: 'Global', memWorkspace: 'Workspace', memSession: 'Session',
+        memory: 'Memory', memAll: 'All', memGlobal: '⭐ General', memWorkspace: '📁 Project', memSession: '💬 Session', memExternal: '📥 Imported',
+        memGlobalHint: 'Remembered in every session: your preferences, name-calling, habits', memWorkspaceHint: 'Only active in sessions of the chosen project folder', memSessionHint: 'Only belongs to this conversation; will not carry over',
+        memInjectLine: '✓ {n} memories will be carried into every new session automatically',
+        memMoreToggle: 'More actions',
+        syncTitle: 'Session sync', syncSwitch: 'Sync my sessions to the knowledge base',
+        syncTargetLocal: 'Local folder', syncTargetNas: 'NAS', syncTargetHint: 'Choose where session handover packages are written. NAS writes go through your selfhost source and respect its write switch.',
+        syncListTitle: 'Sessions on this machine', syncAll: 'Sync all', syncSelected: 'Sync selected', syncTarget: 'Target',
+        syncSynced: 'Synced', syncNoSessions: 'No sessions found', syncLoading: 'Loading sessions…',
+        syncResumeHint: 'New computer? 1) Add a source pointing at the archive folder (or NAS) 2) Memory → More actions → Import package 3) New session picks up automatically',
+        syncDone: 'Synced', syncFail: 'Failed', syncNoPick: 'Select at least one session',
+        syncAuto: 'Auto-sync new sessions (debounced ~90s)', syncTargetSource: 'NAS source', syncPersistedWarn: 'Saved for this session (profile patch prevents persistence)',
+        impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
+        upTitle: 'Worth promoting?', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
+        memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
+        memoryHint: 'The AI automatically carries your preferences and project background into every new session',
         memSearchPlaceholder: 'Search memories…', memNew: 'New', memExport: 'Export', memSnapshots: 'Snapshots',
         memExportTitle: 'Export memories to a local folder (empty exports into the knowledge base memory folder)',
         memExportDestPlaceholder: '/absolute/path/to/folder (optional)',
@@ -103,11 +117,24 @@ window.__ModuleLoader__.load({
         memSummaryPlaceholder: 'One-sentence summary', memCwdPlaceholder: 'Workspace absolute path (e.g. /Users/you/project)',
         memSaving: 'Saving…',
         memSimilarFound: 'A similar memory already exists', memSimilarUpdate: 'Update that note (supersede chain; the old note stays traceable)? OK = update, Cancel = discard',
-        wbMissing: 'WorkBuddy not detected (~/.workbuddy does not exist).',
-        wbStatus: 'WorkBuddy memory folder', wbMemoryFiles: 'memory files', wbPersonal: 'identity files',
-        wbImport: 'Import from WorkBuddy', wbImporting: 'Importing…', wbImportDone: 'Import finished',
-        wbExport: 'Export to WorkBuddy', wbExporting: 'Exporting…', wbExportDone: 'Export finished',
-        wbBridgeHint: 'Imports are read-only copies (identity files are never modified); exports only add files under ~/.workbuddy/memory/dsh-export/ following the sharding convention (keywords on line 2); MEMORY.md is never rewritten.',
+        impTitle: 'Import external package',
+        impDirLabel: 'Package folder (absolute path)',
+        impDirPlaceholder: '/Users/you/ExportedTask',
+        impPreview: 'Preview plan',
+        impExecuting: 'Importing…',
+        impPreviewing: 'Scanning…',
+        impExecute: 'Import selected',
+        impDone: 'Import finished',
+        impPackageDetected: 'Continuity package detected — will create continuation memory entries',
+        impPlainFolder: 'Plain markdown folder',
+        impKindIdentity: 'Identity',
+        impKindContinuity: 'Continuity (decision / handover)',
+        impKindNote: 'Notes',
+        impKindChat: 'Chat transcripts (full-text assets)',
+        impKindArchive: 'Large archives (full-text assets)',
+        impKindProject: 'Project files (skipped)',
+        impSelectHint: 'Select which kinds to import. Notes/identity/continuity become memory entries; chat/archives are copied into the source as searchable full text with a pointer note.',
+        impError: 'Import failed',
       },
       zh: {
         panel: '知识库', iconLabel: '知识库',
@@ -175,7 +202,21 @@ window.__ModuleLoader__.load({
         attachAsPathHint: 'Agent 原地读取知识库原文件',
         attachAsFileHint: '上传副本作为会话附件',
         // memory view
-        memory: '记忆', memAll: '全部', memGlobal: '全局', memWorkspace: '工作区', memSession: '会话',
+        memory: '记忆', memAll: '全部', memGlobal: '⭐ 通用', memWorkspace: '📁 项目', memSession: '💬 临时', memExternal: '📥 导入',
+        memGlobalHint: '所有会话都会记得：你的偏好、称呼、习惯', memWorkspaceHint: '只在所选项目文件夹的会话中生效', memSessionHint: '只属于这一次对话，不会带到以后',
+        memInjectLine: '✓ 下个新会话将自动带上 {n} 条记忆',
+        memMoreToggle: '更多操作',
+        syncTitle: '会话同步', syncSwitch: '把我的会话同步到知识库',
+        syncTargetLocal: '本地文件夹', syncTargetNas: 'NAS', syncTargetHint: '选择会话交接包的写入位置。NAS 写入经由你的自建知识库来源，并遵守该站点的写入开关。',
+        syncListTitle: '本机会话', syncAll: '全部同步', syncSelected: '同步所选', syncTarget: '目标',
+        syncSynced: '已同步', syncNoSessions: '没有找到会话', syncLoading: '正在加载会话…',
+        syncResumeHint: '换电脑后：① 知识库添加来源指向归档文件夹（或 NAS）② 记忆 → 更多操作 → 导入交接包 ③ 新会话自动接上进度',
+        syncDone: '已同步', syncFail: '失败', syncNoPick: '请至少勾选一个会话',
+        syncAuto: '自动同步新会话（约90秒防抖）', syncTargetSource: 'NAS 来源', syncPersistedWarn: '本次会话内生效（profile 补丁覆盖，重启后需重开）',
+        impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
+        upTitle: '值得升级的记忆', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
+        memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
+        memoryHint: '让 AI 在每个新会话自动带上你的偏好与项目背景',
         memSearchPlaceholder: '搜索记忆…', memNew: '新建', memExport: '导出', memSnapshots: '快照',
         memExportTitle: '导出记忆到本地路径（留空则导出到知识库记忆目录）',
         memExportDestPlaceholder: '/absolute/path/to/folder（可选）',
@@ -191,11 +232,24 @@ window.__ModuleLoader__.load({
         memSummaryPlaceholder: '一句话摘要', memCwdPlaceholder: '工作区绝对路径（如 /Users/you/project）',
         memSaving: '保存中…',
         memSimilarFound: '已存在相似记忆', memSimilarUpdate: '是否更新该记忆（建立取代链，旧记忆保留可溯）？确认=更新，取消=放弃',
-        wbMissing: '未检测到 WorkBuddy（~/.workbuddy 不存在）。',
-        wbStatus: 'WorkBuddy 记忆目录', wbMemoryFiles: 'memory 文件', wbPersonal: '身份文件',
-        wbImport: '从 WorkBuddy 导入', wbImporting: '导入中…', wbImportDone: '导入完成',
-        wbExport: '导出到 WorkBuddy', wbExporting: '导出中…', wbExportDone: '导出完成',
-        wbBridgeHint: '导入为只读副本（身份文件永不修改）；导出仅新增文件到 ~/.workbuddy/memory/dsh-export/，遵守 sharding 约定（第 2 行 keywords），绝不改写 MEMORY.md。',
+        impTitle: '导入外部记忆包',
+        impDirLabel: '包文件夹（绝对路径）',
+        impDirPlaceholder: '/Users/you/导出任务',
+        impPreview: '预览计划',
+        impExecuting: '导入中…',
+        impPreviewing: '扫描中…',
+        impExecute: '导入所选',
+        impDone: '导入完成',
+        impPackageDetected: '识别为接续包——将生成会话衔接记忆',
+        impPlainFolder: '普通 Markdown 文件夹',
+        impKindIdentity: '身份档案',
+        impKindContinuity: '接续文档（决策/指引）',
+        impKindNote: '笔记',
+        impKindChat: '对话记录（全文资产）',
+        impKindArchive: '大文档（全文资产）',
+        impKindProject: '项目文件（跳过）',
+        impSelectHint: '选择要导入的类别。笔记/身份/接续生成记忆条目；对话/大文档复制进知识库成为可全文检索的资产（附指针条目）。',
+        impError: '导入失败',
       },
     }
     let currentLocale = 'zh'
@@ -1219,12 +1273,23 @@ window.__ModuleLoader__.load({
     }
 
     // ---------- tiered memory view ----------
+    /** Human tier badge: raw tier keys never reach the screen. */
+    function tierBadge(tier) {
+      if (tier === 'global') return '⭐ ' + t('memGlobal').replace(/^⭐\s*/, '')
+      if (tier === 'workspace') return '📁 ' + t('memWorkspace').replace(/^📁\s*/, '')
+      if (typeof tier === 'string' && tier.startsWith('session')) return '💬 ' + t('memSession').replace(/^💬\s*/, '')
+      if (tier === 'workbuddy') return '📥 ' + t('memExternal').replace(/^📥\s*/, '')
+      if (typeof tier === 'string' && tier.startsWith('external')) return '📥 ' + t('memExternal').replace(/^📥\s*/, '') + (tier.includes(':') ? ` · ${tier.slice(tier.indexOf(':') + 1)}` : '')
+      return tier
+    }
+
     function MemoryView(props) {
       const showToast = props.showToast
       const [memState, setMemState] = React.useState({ loading: true })
       const [tierFilter, setTierFilter] = React.useState('all')
       const [query, setQuery] = React.useState('')
       const [editing, setEditing] = React.useState(undefined) // { path, meta, body } | { newTier }
+      const [moreOpen, setMoreOpen] = React.useState(false)
       const [exportOpen, setExportOpen] = React.useState(false)
       const [exportDest, setExportDest] = React.useState('')
       const [exportTier, setExportTier] = React.useState('all')
@@ -1232,8 +1297,24 @@ window.__ModuleLoader__.load({
       const [exporting, setExporting] = React.useState(false)
       const [snapshots, setSnapshots] = React.useState([])
       const [snapOpen, setSnapOpen] = React.useState(false)
-      const [wb, setWb] = React.useState(undefined)
-      const [wbBusy, setWbBusy] = React.useState('')
+      const [syncOn, setSyncOn] = React.useState(undefined) // undefined=未加载
+      const [syncAuto, setSyncAuto] = React.useState(false)
+      const [syncSessions, setSyncSessions] = React.useState(undefined)
+      const [syncIndex, setSyncIndex] = React.useState({})
+      const [syncTarget, setSyncTarget] = React.useState('local')
+      const [syncChecked, setSyncChecked] = React.useState({})
+      const [syncBusy, setSyncBusy] = React.useState('')
+      const [impDoneInfo, setImpDoneInfo] = React.useState(undefined)
+      const [injectStats, setInjectStats] = React.useState(undefined)
+      const [upCandidates, setUpCandidates] = React.useState(undefined)
+      React.useEffect(() => {
+        api('memory-inject-stats').then((data) => setInjectStats(data)).catch(() => setInjectStats(undefined))
+        api('memory-upgrade-candidates').then((data) => setUpCandidates(data.candidates ?? [])).catch(() => setUpCandidates([]))
+      }, [memState])
+      const [impDir, setImpDir] = React.useState('')
+      const [impPlan, setImpPlan] = React.useState(undefined)
+      const [impBusy, setImpBusy] = React.useState('')
+      const [impKinds, setImpKinds] = React.useState({ identity: true, continuity: true, note: true, chat: false, archive: false })
 
       const reload = React.useCallback(async () => {
         setMemState({ loading: true })
@@ -1251,13 +1332,94 @@ window.__ModuleLoader__.load({
           setSnapshots(data.snapshots ?? [])
         } catch { setSnapshots([]) }
       }, [])
-      const reloadWb = React.useCallback(async () => {
+      React.useEffect(() => { void reloadSnapshots() }, [reloadSnapshots])
+      const reloadSync = React.useCallback(async () => {
         try {
-          const data = await api('wb-status')
-          setWb(data)
-        } catch { setWb({ available: false }) }
+          const data = await api('session-list')
+          setSyncOn(data.enabled === true)
+          setSyncAuto(data.autoSync === true)
+          setSyncTarget(data.target === 'nas' ? 'nas' : 'local')
+          setSyncSessions(data.sessions ?? [])
+          setSyncIndex(data.syncIndex ?? {})
+        } catch { setSyncSessions([]) }
       }, [])
-      React.useEffect(() => { void reloadSnapshots(); void reloadWb() }, [reloadSnapshots, reloadWb])
+      React.useEffect(() => { void reloadSync() }, [reloadSync])
+      const toggleSync = async () => {
+        const next = !(syncOn === true)
+        setSyncOn(next)
+        try {
+          const data = await postKb('session-sync-toggle', { enabled: next, autoSync: next ? syncAuto : undefined, target: syncTarget })
+          if (data.persisted === false) showToast(t('syncPersistedWarn'), true)
+        } catch {}
+        if (next) void reloadSync()
+      }
+      const setSyncPref = async (patch) => {
+        if (patch.autoSync !== undefined) setSyncAuto(patch.autoSync)
+        if (patch.target !== undefined) setSyncTarget(patch.target)
+        try {
+          const data = await postKb('session-sync-toggle', patch)
+          if (data.persisted === false) showToast(t('syncPersistedWarn'), true)
+        } catch {}
+      }
+      const runPromote = async (path, toTier) => {
+        try {
+          await postKb('memory-promote', { path, toTier, cwd: window.__KB_CWD__ ?? undefined })
+          showToast(t('upDone'))
+          await Promise.all([reload(), reloadSnapshots()])
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        }
+      }
+      const pickImpFolder = async () => {
+        try {
+          const picked = typeof props.pickDirectory === 'function' ? await props.pickDirectory() : null
+          if (picked) { setImpDir(picked); void runImpPreviewFor(picked) }
+        } catch { /* picker unavailable */ }
+      }
+      const runImpPreviewFor = async (dir) => {
+        setImpBusy('preview'); setImpPlan(undefined); setImpDoneInfo(undefined)
+        try {
+          const data = await postKb('import-plan', { sourceDir: dir })
+          setImpPlan(data.plan)
+        } catch (error) {
+          showToast(`${t('impError')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally { setImpBusy('') }
+      }
+      const runSync = async (all) => {
+        const ids = all ? (syncSessions ?? []).map(s => s.id) : Object.entries(syncChecked).filter(([, on]) => on).map(([id]) => id)
+        if (!all && ids.length === 0) { showToast(t('syncNoPick'), true); return }
+        setSyncBusy(all ? 'all' : 'sel')
+        try {
+          const data = await postKb('session-sync', { ids: all ? undefined : ids, all, target: syncTarget })
+          showToast(`${t('syncDone')} ${data.synced ?? 0} · ${t('syncFail')} ${data.failed ?? 0}`)
+          await Promise.all([reload(), reloadSync()])
+        } catch (error) {
+          showToast(`${t('syncFail')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally { setSyncBusy('') }
+      }
+      const runImpPreview = async () => {
+        setImpBusy('preview')
+        setImpPlan(undefined)
+        try {
+          const data = await postKb('import-plan', { sourceDir: impDir.trim() })
+          setImpPlan(data.plan)
+        } catch (error) {
+          showToast(`${t('impError')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally { setImpBusy('') }
+      }
+      const runImpExecute = async () => {
+        setImpBusy('execute')
+        try {
+          const kinds = Object.entries(impKinds).filter(([, on]) => on).map(([k]) => k)
+          const data = await postKb('import-execute', { sourceDir: impDir.trim(), kinds })
+          showToast(`${t('impDone')}: ${data.notesCount ?? 0} + ${data.assetsCount ?? 0}`)
+          setImpDoneInfo({ notes: data.notesCount ?? 0, assets: data.assetsCount ?? 0 })
+          setImpPlan(undefined)
+          await Promise.all([reload(), reloadSnapshots()])
+        } catch (error) {
+          showToast(`${t('impError')}: ${error instanceof Error ? error.message : ''}`, true)
+        } finally { setImpBusy('') }
+      }
 
       const memories = memState.memories ?? []
       // Search: BM25 server-side results replace the list while a query is active
@@ -1277,14 +1439,18 @@ window.__ModuleLoader__.load({
       const visible = searching
         ? searchHits.map((hit) => ({ tier: hit.tier, file: hit.path.split('/').pop(), title: hit.title, keywords: hit.keywords ?? [], summary: hit.summary, path: hit.path, size: 0, source: undefined, supersededBy: hit.supersededBy }))
         : memories
-      const filtered = tierFilter === 'all' ? visible : visible.filter((item) => item.tier === tierFilter)
-      const countByTier = (tier) => memories.filter((item) => item.tier === tier).length
+      const filtered = tierFilter === 'all' ? visible
+        : tierFilter === 'external' ? visible.filter((item) => item.tier === 'external' || item.tier === 'workbuddy')
+        : visible.filter((item) => item.tier === tierFilter)
+      const countByTier = (tier) => tier === 'external'
+        ? memories.filter((item) => item.tier === 'external' || item.tier === 'workbuddy').length
+        : memories.filter((item) => item.tier === tier).length
 
       const openNew = () => setEditing({ newTier: tierFilter === 'all' ? 'global' : tierFilter })
       const openEdit = async (item) => {
         try {
           const data = await api('memory-read', { path: item.path })
-          setEditing({ path: item.path, meta: data.meta ?? {}, body: data.body ?? '', workbuddy: item.source === 'workbuddy' })
+          setEditing({ path: item.path, meta: data.meta ?? {}, body: data.body ?? '', workbuddy: item.source === 'workbuddy', external: item.source === 'external-import' })
         } catch (error) {
           showToast(`${t('loadFailed')}: ${error instanceof Error ? error.message : ''}`, true)
         }
@@ -1347,29 +1513,9 @@ window.__ModuleLoader__.load({
           showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
         }
       }
-      const runWbImport = async () => {
-        setWbBusy('import')
-        try {
-          const data = await postKb('wb-import', {})
-          showToast(`${t('wbImportDone')}: ${data.count}`)
-          await Promise.all([reload(), reloadWb(), reloadSnapshots()])
-        } catch (error) {
-          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
-        } finally { setWbBusy('') }
-      }
-      const runWbExport = async () => {
-        setWbBusy('export')
-        try {
-          const data = await postKb('wb-export', {})
-          showToast(`${t('wbExportDone')}: ${data.count} → ${data.destination}`)
-          await Promise.all([reloadSnapshots(), reloadWb()])
-        } catch (error) {
-          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
-        } finally { setWbBusy('') }
-      }
-
-      const tierChip = (tier, label) => h('button', {
+      const tierChip = (tier, label, hint) => h('button', {
         className: 'kb-src-chip', 'data-active': tierFilter === tier ? '' : undefined,
+        title: hint ?? undefined,
         onClick: () => setTierFilter(tier),
       }, `${label} (${tier === 'all' ? memories.length : countByTier(tier)})`)
 
@@ -1379,39 +1525,62 @@ window.__ModuleLoader__.load({
       return h('div', { className: 'kb-main', style: { padding: '10px 14px 14px' } },
         h('div', { className: 'kb-toolbar', style: { gap: 8, flexWrap: 'wrap' } },
           tierChip('all', t('memAll')),
-          tierChip('global', t('memGlobal')),
-          tierChip('workspace', t('memWorkspace')),
-          tierChip('session', t('memSession')),
-          memories.some((item) => item.tier === 'workbuddy') && tierChip('workbuddy', 'WorkBuddy'),
+          tierChip('global', t('memGlobal'), t('memGlobalHint')),
+          tierChip('workspace', t('memWorkspace'), t('memWorkspaceHint')),
+          tierChip('session', t('memSession'), t('memSessionHint')),
+          memories.some((item) => item.tier === 'external' || item.tier === 'workbuddy') && tierChip('external', t('memExternal'), t('impSelectHint')),
           h('div', { style: { flex: 1 } }),
           h('div', { className: 'kb-search-box' },
             Icon.searchGlyph(14),
             h('input', { value: query, placeholder: t('memSearchPlaceholder'), onChange: (event) => setQuery(event.target.value) }),
             query.length > 0 && h('button', { className: 'kb-search-clear', onClick: () => setQuery('') }, '×')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: openNew }, Icon.plus(), t('memNew')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setExportOpen(value => !value) }, Icon.upload2(), t('memExport')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { setSnapOpen(value => !value); void reloadSnapshots() } }, Icon.task(), t('memSnapshots'))),
-        exportOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
-          h('div', { className: 'kb-diag-key' }, t('memExportTitle')),
-          h('input', { value: exportDest, placeholder: t('memExportDestPlaceholder'), onChange: (event) => setExportDest(event.target.value), style: { width: '100%' } }),
-          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
-            h('select', { value: exportTier, onChange: (event) => setExportTier(event.target.value), className: 'kb-btn kb-btn-sm' },
-              h('option', { value: 'all' }, t('memAll')),
-              h('option', { value: 'global' }, t('memGlobal')),
-              h('option', { value: 'workspace' }, t('memWorkspace')),
-              h('option', { value: 'session' }, t('memSession')),
-              h('option', { value: 'workbuddy' }, 'WorkBuddy')),
-            h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 } },
-              h('input', { type: 'checkbox', checked: exportSharded, onChange: (event) => setExportSharded(event.target.checked) }),
-              t('memExportSharded')),
-            h('button', { className: 'kb-btn kb-btn-sm', disabled: exporting, onClick: runExport }, exporting ? t('memExporting') : t('memExportGo'))),
-          h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('memExportHint'))),
-        snapOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 6 } },
-          h('div', { className: 'kb-diag-key' }, t('memSnapshotsTitle')),
-          snapshots.length === 0 ? h('div', { className: 'kb-hint' }, t('memNoSnapshots')) :
-            snapshots.map((snap) => h('div', { key: snap.name, style: { display: 'flex', gap: 8, alignItems: 'center' } },
-              h('code', { style: { fontSize: 11 } }, snap.name),
-              h('button', { className: 'kb-btn kb-btn-sm', onClick: () => restoreSnapshot(snap.name) }, t('memRestore'))))),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: openNew }, Icon.plus(), t('memNew'))),
+        injectStats !== undefined && injectStats.count > 0 && h('div', { style: { fontSize: 12, opacity: 0.75, margin: '6px 2px 0' } },
+          `${t('memInjectLine', { n: injectStats.count })} (${injectStats.chars}/${injectStats.maxChars})`),
+        // ---------- 待升级分组 ----------
+        upCandidates !== undefined && upCandidates.length > 0 && h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
+          h('div', { className: 'kb-diag-key' }, `${t('upTitle')} (${upCandidates.length})`),
+          ...upCandidates.slice(0, 5).map((candidate) => h('div', { key: candidate.path, style: { display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 } },
+            h('div', { style: { flex: 1, minWidth: 0 } },
+              h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 } }, candidate.title),
+              h('div', { style: { fontSize: 10, opacity: 0.6 } }, `${tierBadge(candidate.tier)} · ${candidate.reason === 'decision' ? t('upReasonDecision') : t('upReasonPopular')}${candidate.hits > 0 ? ` · ${candidate.hits}×` : ''}`)),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'workspace') }, t('upToProject')),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => runPromote(candidate.path, 'global') }, t('upToGeneral'))))),
+        // ---------- 会话同步 ----------
+        h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
+          h('div', { style: { display: 'flex', gap: 10, alignItems: 'center' } },
+            h('div', { className: 'kb-diag-key', style: { flex: 1 } }, t('syncTitle')),
+            h('button', { className: `kb-btn kb-btn-sm${syncOn === true ? ' kb-btn-primary' : ''}`, onClick: toggleSync },
+              syncOn === true ? 'ON' : 'OFF')),
+          syncOn === true && h('div', { style: { display: 'grid', gap: 8, fontSize: 12 } },
+            h('div', { style: { display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' } },
+              h('span', { className: 'kb-diag-key' }, t('syncTarget')),
+              h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
+                h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => setSyncPref({ target: 'local' }) }), t('syncTargetLocal')),
+              h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
+                h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => setSyncPref({ target: 'nas' }) }), t('syncTargetNas')),
+              h('span', { className: 'kb-hint', style: { fontSize: 11 } }, t('syncTargetHint'))),
+            h('label', { style: { display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' } },
+              h('input', { type: 'checkbox', checked: syncAuto === true, onChange: (event) => setSyncPref({ autoSync: event.target.checked }) }),
+              t('syncAuto')),
+            syncSessions === undefined ? h('div', { className: 'kb-hint' }, t('syncLoading'))
+              : syncSessions.length === 0 ? h('div', { className: 'kb-hint' }, t('syncNoSessions'))
+                : h('div', { style: { display: 'grid', gap: 4, maxHeight: 220, overflowY: 'auto', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)' } },
+                  ...syncSessions.map((session) => {
+                    const synced = syncIndex[session.id] !== undefined
+                    return h('label', { key: session.id, style: { display: 'flex', gap: 8, alignItems: 'center', padding: '6px 8px', borderBottom: '1px solid var(--dsw-alias-border-l1)', cursor: 'pointer' } },
+                      h('input', { type: 'checkbox', checked: syncChecked[session.id] === true,
+                        onChange: (event) => setSyncChecked((prev) => ({ ...prev, [session.id]: event.target.checked })) }),
+                      h('div', { style: { flex: 1, minWidth: 0 } },
+                        h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 } }, session.title),
+                        h('div', { style: { fontSize: 10, opacity: 0.5 } }, `${(session.updated ?? '').slice(0, 10)} · ${(session.bytes / 1024).toFixed(0)} KB`)),
+                      synced && h('span', { className: 'kb-status kb-status-ok' }, t('syncSynced')))
+                  })),
+            syncSessions !== undefined && syncSessions.length > 0 && h('div', { style: { display: 'flex', gap: 8 } },
+              h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: syncBusy !== '', onClick: () => runSync(false) }, syncBusy === 'sel' ? '…' : t('syncSelected')),
+              h('button', { className: 'kb-btn kb-btn-sm', disabled: syncBusy !== '', onClick: () => runSync(true) }, syncBusy === 'all' ? '…' : t('syncAll'))),
+            h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('syncResumeHint')))),
+        // ---------- 记忆列表 ----------
         editing !== undefined && h(MemoryEditor, {
           initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,
         }),
@@ -1422,27 +1591,66 @@ window.__ModuleLoader__.load({
               key: item.path, className: 'kb-diag-row', style: { alignItems: 'flex-start', padding: '8px 6px', borderBottom: '1px solid var(--dsw-alias-border-l1)' },
             },
               h('div', { style: { flex: 1, minWidth: 0 } },
-                h('div', { style: { display: 'flex', gap: 6, alignItems: 'center' } },
-                  h('span', { className: `kb-status ${item.tier === 'global' ? 'kb-status-ok' : item.tier === 'workbuddy' ? 'kb-status-warn' : ''}` }, item.tier),
+                h('div', { style: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' } },
+                  h('span', { className: `kb-status ${item.tier === 'global' ? 'kb-status-ok' : item.tier === 'external' || item.tier === 'workbuddy' ? 'kb-status-warn' : ''}` }, tierBadge(item.tier)),
                   item.supersededBy !== undefined && h('span', { className: 'kb-status kb-status-warn' }, t('memSuperseded')),
-                  h('strong', { style: { fontSize: 13 } }, item.title)),
+                  h('strong', { style: { fontSize: 13 } }, item.title),
+                  h('span', { style: { fontSize: 10, opacity: 0.45 } }, (item.updated ?? '').slice(0, 10))),
                 item.keywords.length > 0 && h('div', { style: { fontSize: 11, opacity: 0.7, marginTop: 2 } }, item.keywords.join(' · ')),
-                h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }, item.summary),
-                h('div', { style: { fontSize: 10, opacity: 0.5, marginTop: 2, fontFamily: 'monospace' } }, item.path)),
+                h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }, title: item.path }, item.summary)),
               h('div', { style: { display: 'flex', gap: 4, flex: 'none' } },
                 h('button', { className: 'kb-btn kb-btn-sm', onClick: () => openEdit(item) }, t('edit')),
-                item.source !== 'workbuddy' && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
-        h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
-          h('div', { className: 'kb-diag-key' }, 'WorkBuddy'),
-          wb === undefined ? h('div', { className: 'kb-hint' }, t('loading'))
-            : wb.available === false ? h('div', { className: 'kb-hint' }, t('wbMissing'))
-              : h('div', { style: { display: 'grid', gap: 6 } },
-                h('div', { style: { fontSize: 12, opacity: 0.8 } },
-                  `${t('wbStatus')}: ${wb.home} · ${t('wbMemoryFiles')}: ${wb.memoryFiles ?? 0} · ${t('wbPersonal')}: ${(wb.personal ?? []).length}`),
-                h('div', { style: { display: 'flex', gap: 8 } },
-                  h('button', { className: 'kb-btn kb-btn-sm', disabled: wbBusy !== '', onClick: runWbImport }, wbBusy === 'import' ? t('wbImporting') : t('wbImport')),
-                  h('button', { className: 'kb-btn kb-btn-sm', disabled: wbBusy !== '', onClick: runWbExport }, wbBusy === 'export' ? t('wbExporting') : t('wbExport'))),
-                h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('wbBridgeHint')))),
+                item.source !== 'workbuddy' && item.source !== 'external-import' && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
+        // ---------- 更多操作（折叠） ----------
+        h('div', { style: { marginTop: 8, display: 'grid', gap: 6 } },
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { setMoreOpen((value) => !value); if (!moreOpen) { void reloadSnapshots() } } },
+            `${moreOpen ? '▾' : '▸'} ${t('memMoreToggle')}`)),
+        moreOpen && h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap', margin: '2px 0 6px' } },
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setExportOpen((value) => !value) }, Icon.upload2(), t('memExport')),
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { setSnapOpen((value) => !value); void reloadSnapshots() } }, Icon.task(), t('memSnapshots'))),
+        moreOpen && exportOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
+          h('div', { className: 'kb-diag-key' }, t('memExportTitle')),
+          h('input', { value: exportDest, placeholder: t('memExportDestPlaceholder'), onChange: (event) => setExportDest(event.target.value), style: { width: '100%' } }),
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
+            h('select', { value: exportTier, onChange: (event) => setExportTier(event.target.value), className: 'kb-btn kb-btn-sm' },
+              h('option', { value: 'all' }, t('memAll')),
+              h('option', { value: 'global' }, t('memGlobal')),
+              h('option', { value: 'workspace' }, t('memWorkspace')),
+              h('option', { value: 'session' }, t('memSession')),
+              h('option', { value: 'external' }, t('memExternal'))),
+            h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 } },
+              h('input', { type: 'checkbox', checked: exportSharded, onChange: (event) => setExportSharded(event.target.checked) }),
+              t('memExportSharded')),
+            h('button', { className: 'kb-btn kb-btn-sm', disabled: exporting, onClick: runExport }, exporting ? t('memExporting') : t('memExportGo'))),
+          h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('memExportHint'))),
+        moreOpen && snapOpen && h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 6 } },
+          h('div', { className: 'kb-diag-key' }, t('memSnapshotsTitle')),
+          snapshots.length === 0 ? h('div', { className: 'kb-hint' }, t('memNoSnapshots')) :
+            snapshots.map((snap) => h('div', { key: snap.name, style: { display: 'flex', gap: 8, alignItems: 'center' } },
+              h('code', { style: { fontSize: 11 } }, snap.name),
+              h('button', { className: 'kb-btn kb-btn-sm', onClick: () => restoreSnapshot(snap.name) }, t('memRestore'))))),
+        moreOpen && h('div', { className: 'kb-surface', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
+          h('div', { className: 'kb-diag-key' }, t('impTitle')),
+          h('div', { style: { display: 'flex', gap: 8 } },
+            h('input', { value: impDir, placeholder: t('impDirPlaceholder'), onChange: (event) => setImpDir(event.target.value), style: { flex: 1, fontFamily: 'monospace', fontSize: 12 } }),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: pickImpFolder }, t('impPickFolder'))),
+          h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
+            h('button', { className: 'kb-btn kb-btn-sm', disabled: impBusy !== '' || impDir.trim().length === 0, onClick: runImpPreview }, impBusy === 'preview' ? t('impPreviewing') : t('impPreview')),
+            impPlan !== undefined && h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: impBusy !== '', onClick: runImpExecute }, impBusy === 'execute' ? t('impExecuting') : t('impExecute'))),
+          impPlan !== undefined && h('div', { style: { display: 'grid', gap: 6, fontSize: 12 } },
+            h('div', null,
+              h('span', { className: `kb-status ${impPlan.package ? 'kb-status-ok' : ''}` }, impPlan.package ? t('impPackageDetected') : t('impPlainFolder'))),
+            ...([['identity', t('impKindIdentity'), impPlan.identityFiles],
+             ['continuity', t('impKindContinuity'), impPlan.continuityFiles],
+             ['note', t('impKindNote'), impPlan.notes],
+             ['chat', t('impKindChat'), impPlan.chatFiles],
+             ['archive', t('impKindArchive'), impPlan.archives]].map(([kind, label, list]) => h('label', { key: kind, style: { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' } },
+              h('input', { type: 'checkbox', checked: impKinds[kind] === true, disabled: (list ?? []).length === 0,
+                onChange: (event) => setImpKinds((prev) => ({ ...prev, [kind]: event.target.checked })) }),
+              `${label} (${(list ?? []).length})`))),
+            impPlan.projectFiles > 0 && h('div', { style: { fontSize: 11, opacity: 0.6 } }, `${t('impKindProject')}: ${impPlan.projectFiles}`),
+            h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('impSelectHint'))),
+          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`)),
       )
     }
 
@@ -1451,27 +1659,35 @@ window.__ModuleLoader__.load({
       const isNew = initial?.newTier !== undefined
       const [title, setTitle] = React.useState(isNew ? '' : initial.meta?.title ?? '')
       const [keywords, setKeywords] = React.useState(isNew ? '' : (Array.isArray(initial.meta?.keywords) ? initial.meta.keywords : []).join(', '))
-      const [summary, setSummary] = React.useState(isNew ? '' : initial.meta?.summary ?? '')
       const [body, setBody] = React.useState(isNew ? '' : initial.body ?? '')
-      const [tier, setTier] = React.useState(isNew ? initial.newTier : initial.meta?.tier === 'workbuddy' ? 'global' : initial.meta?.tier ?? 'global')
+      const [tier, setTier] = React.useState(isNew ? initial.newTier : initial.meta?.tier === 'workbuddy' || initial.meta?.tier === 'external' ? 'global' : initial.meta?.tier ?? 'global')
       const [cwd, setCwd] = React.useState('')
       const [saving, setSaving] = React.useState(false)
-      const readonly = initial?.workbuddy === true
+      const readonly = initial?.workbuddy === true || initial?.external === true
+      const tierCards = [
+        { value: 'global', label: t('memGlobal'), hint: t('memGlobalHint') },
+        { value: 'workspace', label: t('memWorkspace'), hint: t('memWorkspaceHint') },
+        { value: 'session', label: t('memSession'), hint: t('memSessionHint') },
+      ]
+      const effectiveTitle = title.trim() || (body.trim() ? body.trim().split('\n')[0].slice(0, 40) : '')
+      const effectiveSummary = body.trim().replace(/\s+/g, ' ').slice(0, 120)
       return h('div', { className: 'kb-surface', style: { padding: 12, margin: '8px 0', display: 'grid', gap: 8 } },
-        h('div', { style: { display: 'flex', gap: 8, flexWrap: 'wrap' } },
-          isNew && h('select', { value: tier, onChange: (event) => setTier(event.target.value), className: 'kb-btn kb-btn-sm' },
-            h('option', { value: 'global' }, t('memGlobal')),
-            h('option', { value: 'workspace' }, t('memWorkspace')),
-            h('option', { value: 'session' }, t('memSession'))),
-          !isNew && readonly && h('span', { className: 'kb-status kb-status-warn' }, t('memReadonly'))),
+        isNew ? h('div', { style: { display: 'flex', gap: 6, flexWrap: 'wrap' } },
+          ...tierCards.map((card) => h('button', {
+            key: card.value,
+            className: 'kb-btn kb-btn-sm',
+            'data-active': tier === card.value ? '' : undefined,
+            title: card.hint,
+            onClick: () => setTier(card.value),
+            style: tier === card.value ? { fontWeight: 600 } : undefined,
+          }, card.label))) : h('div', { style: { display: 'flex', gap: 8 } },
+          readonly && h('span', { className: 'kb-status kb-status-warn' }, t('memReadonly'))),
         isNew && tier === 'workspace' && h('input', { value: cwd, placeholder: t('memCwdPlaceholder'), onChange: (event) => setCwd(event.target.value), style: { width: '100%' } }),
-        h('input', { value: title, disabled: readonly, placeholder: t('memTitlePlaceholder'), onChange: (event) => setTitle(event.target.value), style: { width: '100%', fontWeight: 600 } }),
-        h('input', { value: keywords, disabled: readonly, placeholder: t('memKeywordsPlaceholder'), onChange: (event) => setKeywords(event.target.value), style: { width: '100%' } }),
-        h('input', { value: summary, disabled: readonly, placeholder: t('memSummaryPlaceholder'), onChange: (event) => setSummary(event.target.value), style: { width: '100%' } }),
-        h('textarea', { value: body, disabled: readonly, onChange: (event) => setBody(event.target.value), rows: 8, style: { width: '100%', fontFamily: 'monospace', fontSize: 12, resize: 'vertical' } }),
-        h('div', { style: { display: 'flex', gap: 8 } },
-          h('button', { className: 'kb-btn kb-btn-sm', disabled: saving || readonly || title.trim().length === 0 || body.trim().length === 0, onClick: () => { setSaving(true); void props.onSave(title.trim(), keywords, summary, body, tier, cwd.trim()).finally(() => setSaving(false)) } }, saving ? t('memSaving') : t('save')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: props.onCancel }, t('cancel'))))
+        h('textarea', { value: body, disabled: readonly, placeholder: t('memBodyPlaceholder'), onChange: (event) => setBody(event.target.value), rows: 8, style: { width: '100%', fontFamily: 'monospace', fontSize: 12, resize: 'vertical' } }),
+        h('input', { value: keywords, disabled: readonly, placeholder: t('memKeywordsOptional'), onChange: (event) => setKeywords(event.target.value), style: { width: '100%' } }),
+        h('div', { style: { display: 'flex', gap: 8, justifyContent: 'flex-end' } },
+          h('button', { className: 'kb-btn kb-btn-sm', onClick: props.onCancel }, t('cancel')),
+          h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: saving || readonly || effectiveTitle.length === 0 || body.trim().length === 0, onClick: () => { setSaving(true); void props.onSave(effectiveTitle, keywords, effectiveSummary, body, tier, cwd.trim()).finally(() => setSaving(false)) } }, saving ? t('memSaving') : t('memSaveBtn'))))
     }
 
     // ---------- source form ----------
@@ -1584,7 +1800,7 @@ window.__ModuleLoader__.load({
             testResult.ok ? t('connOk', { n: testResult.items ?? 0 }) : `${t('connFailed')}: ${testResult.message ?? ''}`)),
         type === 'selfhost' && h(React.Fragment, null,
           h('label', null, t('urlLabel'),
-            h('input', { className: 'kb-input', value: url, placeholder: 'http://192.168.1.10:8010', onChange: (event) => setUrl(event.target.value) })),
+            h('input', { className: 'kb-input', value: url, placeholder: 'http://192.168.3.38:8001', onChange: (event) => setUrl(event.target.value) })),
           h('label', null, t('siteLabel'),
             h('select', {
               className: 'kb-input', value: site,
@@ -2252,7 +2468,7 @@ window.__ModuleLoader__.load({
           }),
           searchQuery.length > 0 && h('button', { className: 'kb-search-clear', 'aria-label': t('clear'), onClick: () => { clearTimeout(searchDebounce.current); setSearchQuery(''); setSearchResult(undefined) } }, '×')),
         h('div', { className: 'kb-head-space' }),
-        h('button', { className: 'kb-btn', onClick: () => { setView('memory'); setFormTarget(undefined) } }, Icon.task(), t('memory')),
+        h('button', { className: 'kb-btn', title: t('memoryHint'), onClick: () => { setView('memory'); setFormTarget(undefined) } }, Icon.task(), t('memory')),
         h('button', { className: 'kb-btn', onClick: () => { setView('diag'); setFormTarget(undefined) } }, Icon.gear(), t('diagnostics')),
         canEdit && h('button', { className: 'kb-btn', onClick: () => { setView('sources'); setFormTarget(undefined) } }, t('sources')),
       )
@@ -2424,7 +2640,7 @@ window.__ModuleLoader__.load({
             onDone: () => { setView('browse'); setFormTarget(undefined); reloadSources() },
           }))
         : effectiveView === 'diag' ? h(DiagnosticsView, null)
-        : effectiveView === 'memory' ? h(MemoryView, { showToast })
+        : effectiveView === 'memory' ? h(MemoryView, { showToast, pickDirectory: props.pickDirectory })
         : h('div', { className: 'kb-main', style: { padding: '0 14px 14px' } }, browseMain)
 
       return h('div', { className: 'kb-page' },
