@@ -1790,7 +1790,7 @@ window.__ModuleLoader__.load({
                 h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }, title: item.path }, item.summary)),
               h('div', { style: { display: 'flex', gap: 4, flex: 'none' } },
                 h('button', { className: 'kb-btn kb-btn-sm', onClick: () => openEdit(item) }, t('edit')),
-                item.source !== 'workbuddy' && item.source !== 'external-import' && h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
+                h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
         // ---------- 导出记忆 ----------
         h('div', { className: 'kb-mem-section' },
           h('div', { className: 'kb-mem-section-head' },
@@ -1878,7 +1878,7 @@ window.__ModuleLoader__.load({
       const [tier, setTier] = React.useState(isNew ? initial.newTier : initial.meta?.tier === 'workbuddy' || initial.meta?.tier === 'external' ? 'global' : initial.meta?.tier ?? 'global')
       const [cwd, setCwd] = React.useState('')
       const [saving, setSaving] = React.useState(false)
-      const readonly = initial?.workbuddy === true || initial?.external === true
+      const readonly = false
       const tierCards = [
         { value: 'global', label: t('memGlobal'), hint: t('memGlobalHint') },
         { value: 'workspace', label: t('memWorkspace'), hint: t('memWorkspaceHint') },

@@ -3408,8 +3408,6 @@ async function deleteMemoryFile(ctx, absolutePath) {
   const nodeFs = (await import('node:fs')).default
   const existing = await readMemoryFile(ctx, target)
   if (existing.error !== undefined) return existing
-  if (existing.meta?.source === 'workbuddy') return { error: 'workbuddy-imported memories are read-only here; delete them in WorkBuddy and re-import' }
-  if (existing.meta?.source === 'external-import') return { error: 'externally imported memories are managed by the import system; remove the package via re-import instead' }
   try {
     await nodeFs.promises.unlink(target)
     searchIndex.delete(indexKey(resolved.source))
