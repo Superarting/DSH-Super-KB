@@ -440,6 +440,61 @@ window.__ModuleLoader__.load({
 .kb-pop-item .kb-pop-item-hint{flex:none;max-width:170px;text-align:right}
 .kb-move-tree{max-height:280px;overflow:auto;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-sm);padding:4px}
 .kb-view-toggle{margin-left:auto;display:inline-flex;gap:2px;padding:2px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-2)}
+
+/* ===== Memory view redesign (v2.6) : hierarchy + collapsible tool sections ===== */
+/* toolbar: split filter chips / search / actions into clear bands */
+.kb-mem-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:0 0 10px;border-bottom:1px solid var(--dsw-alias-border-l1)}
+.kb-mem-chipgroup{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.kb-mem-toolbar-spacer{flex:1;min-width:12px}
+.kb-mem-actions{display:flex;gap:6px;align-items:center;flex:none}
+/* primary memory list panel */
+.kb-mem-primary{border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-base);overflow:hidden;min-width:0}
+.kb-mem-primary-head{display:flex;align-items:center;gap:9px;padding:11px 14px;border-bottom:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-secondary,transparent)}
+.kb-mem-primary-icon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-2);flex:none}
+.kb-mem-primary-icon svg{opacity:.85}
+.kb-mem-primary-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);flex:1;min-width:0}
+.kb-mem-primary-count{font-size:11px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:999px;padding:2px 9px;line-height:16px;flex:none}
+/* memory row refined */
+.kb-memrow{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border-bottom:1px solid var(--dsw-alias-border-l1);min-width:0;box-sizing:border-box}
+.kb-memrow:last-child{border-bottom:none}
+@media (hover:hover){.kb-memrow:hover{background:var(--dsw-alias-interactive-bg-hover)}}
+.kb-memrow-main{flex:1;min-width:0}
+.kb-memrow-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.kb-memrow-title{font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary);line-height:1.4;word-break:break-word}
+.kb-memrow-time{font-size:10px;color:var(--dsw-alias-label-caption);flex:none}
+.kb-memrow-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+.kb-memtag{font-size:10px;line-height:17px;padding:0 7px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb-memrow-summary{font-size:12px;line-height:1.5;color:var(--dsw-alias-label-secondary);margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty}
+.kb-memrow-actions{display:flex;gap:4px;flex:none;align-items:center}
+/* tier semantic badges */
+.kb-tier{font-size:10px;font-weight:600;line-height:18px;padding:0 8px;border-radius:999px;border:1px solid transparent;flex:none;white-space:nowrap}
+.kb-tier-global{color:var(--dsw-alias-state-success-primary);background:color-mix(in oklch,var(--dsw-alias-state-success-primary) 12%,transparent);border-color:color-mix(in oklch,var(--dsw-alias-state-success-primary) 30%,transparent)}
+.kb-tier-workspace{color:var(--dsw-alias-brand-primary);background:color-mix(in oklch,var(--dsw-alias-brand-primary) 12%,transparent);border-color:color-mix(in oklch,var(--dsw-alias-brand-primary) 30%,transparent)}
+.kb-tier-session{color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-color:var(--dsw-alias-border-l1)}
+.kb-tier-external{color:var(--dsw-alias-state-warn-primary);background:color-mix(in oklch,var(--dsw-alias-state-warn-primary) 12%,transparent);border-color:color-mix(in oklch,var(--dsw-alias-state-warn-primary) 30%,transparent)}
+/* collapsible tool section */
+.kb-toolsec{border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);min-width:0;overflow:hidden}
+.kb-toolsec+.kb-toolsec{margin-top:10px}
+.kb-toolsec-head{width:100%;display:flex;align-items:center;gap:9px;padding:10px 13px;min-height:40px;box-sizing:border-box;background:transparent;border:0;cursor:pointer;text-align:left;color:var(--dsw-alias-label-primary);font:inherit}
+@media (hover:hover){.kb-toolsec-head:hover{background:var(--dsw-alias-interactive-bg-hover)}}
+.kb-toolsec-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.kb-toolsec-ico{display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:var(--dsw-radius-sm);background:var(--dsw-alias-bg-layer-2);flex:none}
+.kb-toolsec-ico svg{opacity:.8}
+.kb-toolsec-title{font-size:12px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb-toolsec-meta{font-size:11px;color:var(--dsw-alias-label-secondary);flex:none}
+.kb-toolsec-chev{display:flex;align-items:center;color:var(--dsw-alias-label-secondary);flex:none;transition:transform .18s ease}
+.kb-toolsec-chev[data-open="true"]{transform:rotate(180deg)}
+.kb-toolsec-body{padding:12px 13px 13px;display:grid;gap:10px;border-top:1px solid var(--dsw-alias-border-l1);animation:kbFadeIn .16s ease-out}
+@keyframes kbFadeIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
+@media (prefers-reduced-motion:reduce){.kb-toolsec-body{animation:none}.kb-toolsec-chev{transition:none}}
+/* inject stat strip */
+.kb-statstrip{display:flex;align-items:center;gap:8px;padding:7px 11px;margin-bottom:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);font-size:11px;color:var(--dsw-alias-label-secondary)}
+.kb-statstrip b{color:var(--dsw-alias-label-primary);font-weight:600}
+.kb-statmeter{height:4px;border-radius:2px;background:var(--dsw-alias-bg-layer-2);flex:1;min-width:40px;overflow:hidden}
+.kb-statmeter>i{display:block;height:100%;border-radius:2px;background:var(--dsw-alias-brand-primary)}
+/* section divider label */
+.kb-toolslabel{display:flex;align-items:center;gap:8px;margin:14px 2px 2px;font-size:11px;font-weight:600;letter-spacing:.02em;color:var(--dsw-alias-label-caption);text-transform:uppercase}
+.kb-toolslabel::after{content:"";flex:1;height:1px;background:var(--dsw-alias-border-l1)}
 `
     let styleElement
     function ensureStyles() {
@@ -1395,6 +1450,8 @@ window.__ModuleLoader__.load({
       const [editSessionId, setEditSessionId] = React.useState(undefined)
       const [editSessionFiles, setEditSessionFiles] = React.useState(undefined)
       const [editSessionBusy, setEditSessionBusy] = React.useState('')
+      const [openSections, setOpenSections] = React.useState({})
+      const toggleSection = (key) => setOpenSections((prev) => ({ ...prev, [key]: !(prev[key] === true) }))
       React.useEffect(() => {
         api('memory-inject-stats').then((data) => setInjectStats(data)).catch(() => setInjectStats(undefined))
         api('memory-upgrade-candidates').then((data) => setUpCandidates(data.candidates ?? [])).catch(() => setUpCandidates([]))
@@ -1685,23 +1742,43 @@ window.__ModuleLoader__.load({
         onClick: () => setTierFilter(tier),
       }, `${label} (${tier === 'all' ? memories.length : countByTier(tier)})`)
 
+      // 统一工具区：可折叠头 + meta 摘要，默认收起，点标题展开
+      const toolSection = (key, icon, title, meta, children) => {
+        const isOpen = openSections[key] === true
+        return h('div', { className: 'kb-toolsec' },
+          h('button', { className: 'kb-toolsec-head', 'aria-expanded': isOpen, onClick: () => toggleSection(key) },
+            h('span', { className: 'kb-toolsec-ico' }, icon),
+            h('span', { className: 'kb-toolsec-title' }, title),
+            meta !== undefined && h('span', { className: 'kb-toolsec-meta' }, meta),
+            h('span', { className: 'kb-toolsec-chev', 'data-open': isOpen ? 'true' : 'false' }, SyncIcons.chevronDown(14))),
+          isOpen && h('div', { className: 'kb-toolsec-body' }, children))
+      }
+      const tierBadgeEl = (tier) => {
+        const t0 = String(tier ?? 'session')
+        const cls = t0 === 'global' ? 'kb-tier-global' : t0 === 'workspace' ? 'kb-tier-workspace' : (t0 === 'external' || t0 === 'workbuddy') ? 'kb-tier-external' : 'kb-tier-session'
+        const label = tierBadge(tier).replace(/^[^\S\n]*\S+\s/, '') // strip leading emoji
+        return h('span', { className: 'kb-tier ' + cls }, label)
+      }
+
       if (memState.loading) return h('div', { className: 'kb-hint' }, t('loading'))
       if (memState.error !== undefined) return h('div', { className: 'kb-hint kb-status-error' }, `${t('loadFailed')}: ${memState.error}`)
 
       return h('div', { className: 'kb-main', style: { flex: 1, minHeight: 0, padding: '10px 14px 14px', overflowY: 'auto' } },
-        h('div', { className: 'kb-toolbar', style: { gap: 8, flexWrap: 'wrap' } },
-          tierChip('all', t('memAll'), t('memAllHint')),
-          tierChip('global', t('memGlobal'), t('memGlobalHint')),
-          tierChip('workspace', t('memWorkspace'), t('memWorkspaceHint')),
-          tierChip('session', t('memSession'), t('memSessionHint')),
-          memories.some((item) => item.tier === 'external' || item.tier === 'workbuddy') && tierChip('external', t('memExternal'), t('memExternalHint')),
-          h('div', { style: { flex: 1 } }),
+        h('div', { className: 'kb-mem-toolbar' },
+          h('div', { className: 'kb-mem-chipgroup' },
+            tierChip('all', t('memAll'), t('memAllHint')),
+            tierChip('global', t('memGlobal'), t('memGlobalHint')),
+            tierChip('workspace', t('memWorkspace'), t('memWorkspaceHint')),
+            tierChip('session', t('memSession'), t('memSessionHint')),
+            memories.some((item) => item.tier === 'external' || item.tier === 'workbuddy') && tierChip('external', t('memExternal'), t('memExternalHint'))),
+          h('div', { className: 'kb-mem-toolbar-spacer' }),
           h('div', { className: 'kb-search-box' },
             Icon.searchGlyph(14),
             h('input', { value: query, placeholder: t('memSearchPlaceholder'), onChange: (event) => setQuery(event.target.value) }),
             query.length > 0 && h('button', { className: 'kb-search-clear', onClick: () => setQuery('') }, '×')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: openBulk, disabled: bulkBusy !== '' }, t('bulkEdit')),
-          h('button', { className: 'kb-btn kb-btn-sm', onClick: openNew }, Icon.plus(), t('memNew'))),
+          h('div', { className: 'kb-mem-actions' },
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: openBulk, disabled: bulkBusy !== '' }, t('bulkEdit')),
+            h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', onClick: openNew }, Icon.plus(), t('memNew')))),
         bulkOpen && h('div', { className: 'kb-card', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
           h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
             h('span', { className: 'kb-diag-key', style: { flex: 1 } }, `${t('bulkTitle')} (${bulkCount})`),
@@ -1714,11 +1791,12 @@ window.__ModuleLoader__.load({
                 style: { width: '100%', minHeight: 380, resize: 'vertical', fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace', fontSize: 12, lineHeight: 1.5,
                   border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)', padding: 10,
                   background: 'var(--dsw-alias-bg-base)', color: 'var(--dsw-alias-label-primary)', outline: 'none' } })),
-        injectStats !== undefined && injectStats.count > 0 && h('div', { style: { fontSize: 12, opacity: 0.75, margin: '6px 2px 0' } },
-          `${t('memInjectLine', { n: injectStats.count })} (${injectStats.chars}/${injectStats.maxChars})`),
+        injectStats !== undefined && injectStats.count > 0 && h('div', { className: 'kb-statstrip' },
+          h('span', null, t('memInjectLine', { n: injectStats.count }).split(' (')[0]),
+          h('span', { className: 'kb-statmeter' }, h('i', { style: { width: Math.min(100, Math.round((injectStats.chars / Math.max(1, injectStats.maxChars)) * 100)) + '%' } })),
+          h('b', null, `${injectStats.chars}/${injectStats.maxChars}`)),
         // ---------- 待升级分组 ----------
-        upCandidates !== undefined && upCandidates.filter((c) => !upDismissed.includes(c.path)).length > 0 && h('div', { className: 'kb-card', style: { padding: 12, marginTop: 10, display: 'grid', gap: 8 } },
-          h('div', { className: 'kb-diag-key' }, `${t('upTitle')} (${upCandidates.filter((c) => !upDismissed.includes(c.path)).length})`),
+        upCandidates !== undefined && upCandidates.filter((c) => !upDismissed.includes(c.path)).length > 0 && toolSection('up', SyncIcons.gear(15), t('upTitle'), String(upCandidates.filter((c) => !upDismissed.includes(c.path)).length), [h('div', { style: { display: 'grid', gap: 8 } },
           ...upCandidates.filter((c) => !upDismissed.includes(c.path)).slice(0, upExpanded ? 100 : 3).map((candidate) => h('div', { key: candidate.path, style: { display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 12, padding: '8px 0', borderBottom: '1px solid var(--dsw-alias-border-l1)' } },
             h('div', { style: { flex: 1, minWidth: 0 } },
               h('div', { style: { lineHeight: 1.5, wordBreak: 'break-word', color: 'var(--dsw-alias-label-primary)' } },
@@ -1732,12 +1810,11 @@ window.__ModuleLoader__.load({
               h('button', { className: 'kb-icon-btn', title: t('upDismiss'), onClick: () => setUpDismissed((prev) => [...prev, candidate.path]) }, SyncIcons.x(14))))),
           upCandidates.filter((c) => !upDismissed.includes(c.path)).length > 3 && h('button', { className: 'kb-btn kb-btn-sm', style: { justifyContent: 'center' }, onClick: () => setUpExpanded((v) => !v) },
             upExpanded ? SyncIcons.chevronUp(13) : SyncIcons.chevronDown(13),
-            upExpanded ? t('upLess') : t('upMore', { n: upCandidates.filter((c) => !upDismissed.includes(c.path)).length - 3 }))),
+            upExpanded ? t('upLess') : t('upMore', { n: upCandidates.filter((c) => !upDismissed.includes(c.path)).length - 3 })))]),
         // ---------- 会话同步 ----------
-        h('div', { className: 'kb-mem-section' },
-          h('div', { className: 'kb-mem-section-head' },
-            SyncIcons.refresh(15),
-            h('span', { className: 'kb-mem-section-title' }, t('syncMasterTitle')),
+        toolSection('sync', SyncIcons.refresh(15), t('syncMasterTitle'), syncSessions !== undefined ? `${syncSessions.length}` : undefined, [
+          h('div', { className: 'kb-setting-row' },
+            h('span', { className: 'kb-setting-label' }, t('syncSwitch')),
             h(Switch, { on: syncOn === true, onChange: toggleSync, label: t('syncMasterHint') })),
           syncOn !== true && h('div', { className: 'kb-setting-hint' }, t('syncOffHint')),
           syncOn === true && h('div', { style: { display: 'grid', gap: 8, fontSize: 12 } },
@@ -1801,35 +1878,38 @@ window.__ModuleLoader__.load({
                   .then(() => { showToast(t('syncRestored')); void reloadSync() })
                   .catch((e) => showToast(`${t('opFailed')}: ${e instanceof Error ? e.message : ''}`, true))
               } }, t('syncRestoreAll')))),
+        ]),
         // ---------- 记忆列表 ----------
         editing !== undefined && h(MemoryEditor, {
           initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,
         }),
-        h('div', { className: 'kb-mem-section-head', style: { marginTop: 8 } },
-          h('span', { className: 'kb-mem-section-title' }, t('memListTitle'))),
-        h('div', { className: 'kb-card', style: { padding: 4 } },
+        h('div', { className: 'kb-mem-primary' },
+          h('div', { className: 'kb-mem-primary-head' },
+            h('span', { className: 'kb-mem-primary-icon' }, Icon.book(15)),
+            h('span', { className: 'kb-mem-primary-title' }, t('memListTitle')),
+            h('span', { className: 'kb-mem-primary-count' }, `${filtered.length}`)),
           filtered.length === 0
-            ? h('div', { className: 'kb-empty', style: { padding: 20 } }, h('div', { className: 'kb-empty-desc' }, t('memEmpty')))
+            ? h('div', { className: 'kb-empty', style: { padding: 28 } }, h('div', { className: 'kb-empty-icon' }, Icon.book(28)), h('div', { className: 'kb-empty-desc' }, t('memEmpty')))
             : filtered.map((item) => h('div', {
-              key: item.path, className: 'kb-diag-row', style: { alignItems: 'flex-start', padding: '10px 8px' },
+              key: item.path, className: 'kb-memrow',
             },
-              h('div', { style: { flex: 1, minWidth: 0 } },
-                h('div', { style: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' } },
-                  h('span', { className: `kb-status ${item.tier === 'global' ? 'kb-status-ok' : item.tier === 'external' || item.tier === 'workbuddy' ? 'kb-status-warn' : ''}` }, tierBadge(item.tier)),
-                  item.supersededBy !== undefined && h('span', { className: 'kb-status kb-status-warn' }, t('memSuperseded')),
-                  h('strong', { style: { fontSize: 13 } }, item.title),
-                  h('span', { style: { fontSize: 10, opacity: 0.45 } }, (item.updated ?? '').slice(0, 10))),
-                item.keywords.length > 0 && h('div', { style: { fontSize: 11, opacity: 0.7, marginTop: 2 } }, item.keywords.join(' · ')),
-                h('div', { style: { fontSize: 12, opacity: 0.85, marginTop: 3, lineHeight: 1.45, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }, title: item.path }, item.summary)),
-              h('div', { style: { display: 'flex', gap: 4, flex: 'none' } },
+              h('div', { className: 'kb-memrow-main' },
+                h('div', { className: 'kb-memrow-head' },
+                  tierBadgeEl(item.tier),
+                  item.supersededBy !== undefined && h('span', { className: 'kb-tier kb-tier-external' }, t('memSuperseded')),
+                  h('span', { className: 'kb-memrow-title' }, item.title),
+                  h('span', { className: 'kb-memrow-time' }, (item.updated ?? '').slice(0, 10))),
+                item.keywords.length > 0 && h('div', { className: 'kb-memrow-tags' },
+                  item.keywords.slice(0, 8).map((kw, idx) => h('span', { key: idx, className: 'kb-memtag', title: kw }, kw))),
+                h('div', { className: 'kb-memrow-summary', title: item.path }, item.summary)),
+              h('div', { className: 'kb-memrow-actions' },
                 h('button', { className: 'kb-btn kb-btn-sm', onClick: () => openEdit(item) }, t('edit')),
-                h('button', { className: 'kb-btn kb-btn-sm', onClick: () => removeMemory(item) }, Icon.trash()))))),
+                h('button', { className: 'kb-icon-btn', title: t('delete'), onClick: () => removeMemory(item) }, Icon.trash()))))),
         // ---------- 导出记忆 ----------
-        h('div', { className: 'kb-mem-section' },
-          h('div', { className: 'kb-mem-section-head' },
-            Icon.upload2(), h('span', { className: 'kb-mem-section-title' }, t('memExportTitle')),
+        toolSection('export', Icon.upload2(), t('memExportTitle'), undefined, [
+          h('div', { style: { display: 'flex', gap: 8, alignItems: 'center' } },
+            h('input', { value: exportDest, placeholder: t('memExportDestPlaceholder'), onChange: (event) => setExportDest(event.target.value), style: { flex: 1, minWidth: 0 } }),
             h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: exporting, onClick: runExport }, exporting ? t('memExporting') : t('memExportGo'))),
-          h('input', { value: exportDest, placeholder: t('memExportDestPlaceholder'), onChange: (event) => setExportDest(event.target.value), style: { width: '100%' } }),
           h('div', { style: { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' } },
             h('select', { value: exportTier, onChange: (event) => setExportTier(event.target.value), className: 'kb-btn kb-btn-sm' },
               h('option', { value: 'all' }, t('memAll')),
@@ -1841,13 +1921,13 @@ window.__ModuleLoader__.load({
               h('input', { type: 'checkbox', checked: exportSharded, onChange: (event) => setExportSharded(event.target.checked) }),
               t('memExportSharded')),
             exportDest.trim().length === 0 && h('span', { className: 'kb-status kb-status-warn' }, t('memExportDestHint'))),
-          h('div', { className: 'kb-setting-hint' }, t('memExportHint'))),
+          h('div', { className: 'kb-setting-hint' }, t('memExportHint'))
+        ]),
         // ---------- 备份与回滚 ----------
-        h('div', { className: 'kb-mem-section' },
-          h('div', { className: 'kb-mem-section-head' },
-            SyncIcons.history(15), h('span', { className: 'kb-mem-section-title' }, t('memSnapshotsTitle')),
+        toolSection('backup', SyncIcons.history(15), t('memSnapshotsTitle'), `${snapshots.length}`, [
+          h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 } },
+            h('span', { className: 'kb-setting-hint' }, t('memSnapshotsHint')),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => { void reloadSnapshots() } }, t('memRefresh'))),
-          h('div', { className: 'kb-setting-hint' }, t('memSnapshotsHint')),
           snapshots.length === 0 ? h('div', { className: 'kb-hint' }, t('memNoSnapshots')) :
             [...snapshots.slice(0, snapExpanded ? 100 : 3).map((snap) => h('div', { key: snap.name, style: { display: 'flex', gap: 8, alignItems: 'center' } },
               h('code', { style: { fontSize: 11, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } }, snap.name),
@@ -1855,11 +1935,10 @@ window.__ModuleLoader__.load({
               h('button', { className: 'kb-icon-btn', title: t('memSnapDeleteBtn'), onClick: () => deleteSnapshot(snap.name) }, SyncIcons.trash(13)))),
              ...(snapshots.length > 3 ? [h('button', { className: 'kb-btn kb-btn-sm', style: { justifyContent: 'center' }, onClick: () => setSnapExpanded((v) => !v) },
               snapExpanded ? SyncIcons.chevronUp(13) : SyncIcons.chevronDown(13),
-              snapExpanded ? t('upLess') : t('upMore', { n: snapshots.length - 3 }))] : [])]),
+              snapExpanded ? t('upLess') : t('upMore', { n: snapshots.length - 3 }))] : [])]
+        ]),
         // ---------- 导入交接包 ----------
-        h('div', { className: 'kb-mem-section' },
-          h('div', { className: 'kb-mem-section-head' },
-            SyncIcons.folderUp(15), h('span', { className: 'kb-mem-section-title' }, t('impTitle'))),
+        toolSection('imp', SyncIcons.folderUp(15), t('impTitle'), undefined, [
           h('div', { style: { display: 'flex', gap: 8 } },
             h('input', { value: impDir, placeholder: t('impDirPlaceholder'), onChange: (event) => setImpDir(event.target.value), style: { flex: 1, fontFamily: 'monospace', fontSize: 12 } }),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: pickImpFolder }, t('impPickFolder'))),
@@ -1879,7 +1958,8 @@ window.__ModuleLoader__.load({
               `${label} (${(list ?? []).length})`))),
             impPlan.projectFiles > 0 && h('div', { style: { fontSize: 11, opacity: 0.6 } }, `${t('impKindProject')}: ${impPlan.projectFiles}`),
             h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('impSelectHint'))),
-          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`)),
+          impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`)
+        ]),
         // ---------- 会话归档弹窗 ----------
         editSessionId !== undefined && h(Modal, {
           title: t('syncEditing') + (syncSessions !== undefined && syncSessions.find((s) => s.id === editSessionId) ? ' · ' + syncSessions.find((s) => s.id === editSessionId).title : ''),
@@ -1900,8 +1980,7 @@ window.__ModuleLoader__.load({
             h('button', { className: 'kb-btn kb-btn-sm', disabled: editSessionBusy === 'save', onClick: () => deleteSessionArchive(editSessionId) }, SyncIcons.trash(13), ' ', t('syncDeleteBtn')),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setEditSessionId(undefined) }, t('cancel')),
             h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: editSessionBusy === 'save', onClick: saveSessionEdit }, editSessionBusy === 'save' ? t('bulkSaving') : t('bulkSave'))))
-        ),
-      )
+        )
     }
 
     function MemoryEditor(props) {
