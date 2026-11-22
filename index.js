@@ -2505,6 +2505,94 @@ async function memoryRoute(ctx, request, op) {
     return okPayload({ kind: 'nas', sourceId: source.id, sourceName: source.name, site: source.site, path, items: folders.map(f => ({ name: f.path, kind: 'folder', depth: f.depth })) })
   }
 
+  // 同步归档读取/保存/删除（就地编辑 + 删除联动）
+  if (op === 'sync-archive-read') {
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return fail(404, 'memory-disabled', 'memory system disabled or no local source')
+    const nodePath = (await import('node:path')).default
+    const fs = (await import('node:fs')).promises
+    const sessionId = url.searchParams.get('sessionId')
+    const sessions = await listDshSessions()
+    const session = sessions.find(s => s.id === sessionId)
+    if (session === undefined) return fail(404, 'no-session', 'session not found')
+    const dirName = sessionDirName(session, new Date().toISOString().slice(0, 10))
+    const root = nodePath.resolve(memory.source.path, SYNC_ARCHIVE_DIR, dirName)
+    const files = {}
+    let exists = false
+    try {
+      for (const f of await fs.readdir(root)) {
+        if (f.endsWith('.md')) { files[f] = await fs.readFile(nodePath.join(root, f), 'utf8'); exists = true }
+      }
+    } catch {}
+    return okPayload({ dirName, exists, files })
+  }
+
+  if (op === 'sync-archive-save' && request.method === 'POST') {
+    const body = await readBody()
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return fail(404, 'memory-disabled', 'memory system disabled or no local source')
+    const nodePath = (await import('node:path')).default
+    const fs = (await import('node:fs')).promises
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : undefined
+    const files = (body?.files && typeof body.files === 'object') ? body.files : undefined
+    if (sessionId === undefined || files === undefined) return fail(400, 'bad-body', 'sessionId + files required')
+    const sessions = await listDshSessions()
+    const session = sessions.find(s => s.id === sessionId)
+    if (session === undefined) return fail(404, 'no-session', 'session not found')
+    const dirName = sessionDirName(session, new Date().toISOString().slice(0, 10))
+    const root = nodePath.resolve(memory.source.path, SYNC_ARCHIVE_DIR, dirName)
+    await fs.mkdir(root, { recursive: true })
+    for (const [name, content] of Object.entries(files)) {
+      if (typeof content !== 'string') continue
+      if (!name.endsWith('.md')) continue
+      await fs.writeFile(nodePath.join(root, name), content, 'utf8')
+    }
+    return okPayload({ dirName, saved: Object.keys(files).length })
+  }
+
+  if (op === 'sync-archive-delete' && request.method === 'POST') {
+    const body = await readBody()
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return fail(404, 'memory-disabled', 'memory system disabled or no local source')
+    const nodePath = (await import('node:path')).default
+    const fs = (await import('node:fs')).promises
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : undefined
+    if (sessionId === undefined) return fail(400, 'bad-body', 'sessionId required')
+    const sessions = await listDshSessions()
+    const session = sessions.find(s => s.id === sessionId)
+    if (session === undefined) return fail(404, 'no-session', 'session not found')
+    const base = nodePath.resolve(memory.source.path, SYNC_ARCHIVE_DIR)
+    let removed = 0
+    try {
+      for (const d of await fs.readdir(base)) {
+        if (d.includes(session.title.slice(0, 12)) || d === sessionDirName(session, new Date().toISOString().slice(0, 10))) {
+          await fs.rm(nodePath.join(base, d), { recursive: true, force: true })
+          removed += 1
+        }
+      }
+    } catch {}
+    // 更新 .sync-index.json（移除该 session）
+    try {
+      const indexPath = nodePath.resolve(base, '.sync-index.json')
+      const idx = JSON.parse(await fs.readFile(indexPath, 'utf8'))
+      if (idx && typeof idx === 'object' && idx[sessionId] !== undefined) {
+        delete idx[sessionId]
+        await fs.writeFile(indexPath, JSON.stringify(idx, null, 2), 'utf8')
+      }
+    } catch {}
+    // 删除左侧面板的会话任务：移除 DSH 会话目录与 projcache 元数据
+    let sessionRemoved = 0
+    try {
+      const roots = (await fs.readdir(DSH_SESSIONS_ROOT, { withFileTypes: true })).filter(e => e.isDirectory()).map(e => nodePath.join(DSH_SESSIONS_ROOT, e.name))
+      for (const root of roots) {
+        const dir = nodePath.join(root, `session-${sessionId}`)
+        try { await fs.rm(dir, { recursive: true, force: true }); sessionRemoved += 1 } catch {}
+      }
+    } catch {}
+    try { await fs.rm(nodePath.join(DSH_PROJCACHE_DIR, `session-${sessionId}.json`), { force: true }) } catch {}
+    return okPayload({ removed, sessionRemoved, note: 'archive + left-panel session removed' })
+  }
+
   // ---------- session sync ----------
   if (op === 'session-list') {
     const sessions = await listDshSessions()
