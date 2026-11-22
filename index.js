@@ -2282,6 +2282,24 @@ async function memoryRoute(ctx, request, op) {
     return okPayload(result)
   }
 
+  if (op === 'memory-snapshot-delete' && request.method === 'POST') {
+    const body = await readBody()
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return fail(409, 'memory-unavailable', 'memory storage unavailable')
+    const nodePath = (await import('node:path')).default
+    const nodeFs = (await import('node:fs')).default
+    const root = nodePath.resolve(memory.root)
+    const safeName = String(body?.snapshot ?? '').replace(/\.json$/i, '').replace(/[^a-zA-Z0-9-]/g, '')
+    const snapshotPath = nodePath.join(root, MEMORY_SNAPSHOT_DIR, `${safeName}.json`)
+    if (!snapshotPath.startsWith(nodePath.join(root, MEMORY_SNAPSHOT_DIR) + nodePath.sep)) return fail(400, 'bad-snapshot', 'invalid snapshot name')
+    try {
+      await nodeFs.promises.unlink(snapshotPath)
+      return okPayload({ deleted: snapshotPath })
+    } catch (error) {
+      return fail(409, 'delete-failed', error instanceof Error ? error.message : 'delete failed')
+    }
+  }
+
   if (op === 'memory-export' && request.method === 'POST') {
     const body = await readBody()
     const memory = await memoryRoot(ctx)

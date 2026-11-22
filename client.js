@@ -112,7 +112,7 @@ window.__ModuleLoader__.load({
         memExportSharded: 'WorkBuddy shard format (keywords on line 2)',
         memExportGo: 'Export', memExporting: 'Exporting…',
         memExportDone: 'Export finished', memExportHint: 'Exports go to a timestamped subfolder; existing files are never overwritten. A snapshot is taken first.',
-        memSnapshotsTitle: 'Backup & rollback', memSnapshotsHint: 'Auto-created before bulk operations; newest 20 kept',
+        memSnapshotsTitle: 'Backup & rollback', memSnapDeleteBtn: 'Delete snapshot', memSnapDeleteConfirm: 'Delete this snapshot', memSnapDeleted: 'Snapshot deleted', memSnapshotsHint: 'Auto-created before bulk operations; newest 20 kept',
         memNoSnapshots: 'No snapshots yet.', memRestore: 'Verify/rollback', memRestoreDone: 'Snapshot verified',
         memSavedToast: 'Memory saved', memDeletedToast: 'Memory deleted', memDeleteConfirm: 'Delete memory',
         memEmpty: 'No memories yet. Save the first one with the memory_save tool or "New".',
@@ -231,7 +231,7 @@ window.__ModuleLoader__.load({
         memExportSharded: 'WorkBuddy 分片格式（第 2 行 keywords）',
         memExportGo: '导出', memExporting: '导出中…',
         memExportDone: '导出完成', memExportHint: '导出到时间戳子目录，不覆盖已有文件；导出前自动创建快照。',
-        memSnapshotsTitle: '备份与回滚', memSnapshotsHint: '批量操作前自动创建，保留最近 20 个',
+        memSnapshotsTitle: '备份与回滚', memSnapDeleteBtn: '删除快照', memSnapDeleteConfirm: '确认删除该快照', memSnapDeleted: '快照已删除', memSnapshotsHint: '批量操作前自动创建，保留最近 20 个',
         memNoSnapshots: '暂无快照。', memRestore: '校验/回滚', memRestoreDone: '快照校验完成',
         memSavedToast: '记忆已保存', memDeletedToast: '记忆已删除', memDeleteConfirm: '删除记忆',
         memEmpty: '暂无记忆。用 memory_save 工具或点「新建」保存第一条记忆。',
@@ -1657,6 +1657,16 @@ window.__ModuleLoader__.load({
           showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
         }
       }
+      const deleteSnapshot = async (name) => {
+        if (!window.confirm(`${t('memSnapDeleteConfirm')}: ${name}?`)) return
+        try {
+          await postKb('memory-snapshot-delete', { snapshot: name })
+          showToast(t('memSnapDeleted'))
+          await reloadSnapshots()
+        } catch (error) {
+          showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true)
+        }
+      }
       const tierChip = (tier, label, hint) => h('button', {
         className: 'kb-src-chip', 'data-active': tierFilter === tier ? '' : undefined,
         title: hint ?? undefined,
@@ -1818,7 +1828,8 @@ window.__ModuleLoader__.load({
           snapshots.length === 0 ? h('div', { className: 'kb-hint' }, t('memNoSnapshots')) :
             [...snapshots.slice(0, snapExpanded ? 100 : 3).map((snap) => h('div', { key: snap.name, style: { display: 'flex', gap: 8, alignItems: 'center' } },
               h('code', { style: { fontSize: 11, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' } }, snap.name),
-              h('button', { className: 'kb-btn kb-btn-sm', onClick: () => restoreSnapshot(snap.name) }, t('memRestore')))),
+              h('button', { className: 'kb-btn kb-btn-sm', onClick: () => restoreSnapshot(snap.name) }, t('memRestore')),
+              h('button', { className: 'kb-icon-btn', title: t('memSnapDeleteBtn'), onClick: () => deleteSnapshot(snap.name) }, SyncIcons.trash(13)))),
              ...(snapshots.length > 3 ? [h('button', { className: 'kb-btn kb-btn-sm', style: { justifyContent: 'center' }, onClick: () => setSnapExpanded((v) => !v) },
               snapExpanded ? SyncIcons.chevronUp(13) : SyncIcons.chevronDown(13),
               snapExpanded ? t('upLess') : t('upMore', { n: snapshots.length - 3 }))] : [])]),
