@@ -101,7 +101,7 @@ window.__ModuleLoader__.load({
         syncMasterHint: 'Sync my sessions into the knowledge base so a new computer picks up where this one left off',
         syncAutoHint: 'New sessions sync automatically about 90 seconds after each turn ends',
         memRefresh: 'Refresh',
-        syncNasSourceLabel: 'NAS archive location', syncEditBtn: 'Edit archived files', syncDeleteBtn: 'Delete archive', syncDeleteConfirm: 'Delete this session archive AND remove the session from the left panel? This cannot be undone.', syncEditing: 'Editing archived files', syncSavedOk: 'Archive saved', syncDeletedOk: 'Archive deleted', syncNotSyncedYet: 'Not synced yet — sync first to create files', bulkEdit: 'Bulk edit', bulkTitle: 'Global memories (one document)', bulkSave: 'Save all', bulkSaving: 'Saving…', bulkSaved: 'Saved', bulkHint: 'Each entry starts with a --- frontmatter block (title required). Edit freely: add new entries, delete blocks, or rewrite content — Save all replaces the global store.', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
+        syncNasSourceLabel: 'NAS archive location', syncEditBtn: 'Edit archived files', syncViewHint: 'Click to view and edit this session archive', syncDeleteBtn: 'Delete archive', syncDeleteConfirm: 'Delete this session archive AND remove the session from the left panel? This cannot be undone.', syncEditing: 'Editing archived files', syncSavedOk: 'Archive saved', syncDeletedOk: 'Archive deleted', syncNotSyncedYet: 'Not synced yet — sync first to create files', bulkEdit: 'Bulk edit', bulkTitle: 'Global memories (one document)', bulkSave: 'Save all', bulkSaving: 'Saving…', bulkSaved: 'Saved', bulkHint: 'Each entry starts with a --- frontmatter block (title required). Edit freely: add new entries, delete blocks, or rewrite content — Save all replaces the global store.', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
         impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
         upTitle: 'Worth promoting?', upFromSession: 'From session', upDismiss: 'Dismiss', upMore: 'Show {n} more', upLess: 'Show less', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
         memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
@@ -220,7 +220,7 @@ window.__ModuleLoader__.load({
         syncMasterHint: '把我的会话同步进知识库，新电脑接入后即可无缝接上进度',
         syncAutoHint: '每轮对话结束约90秒后自动同步新会话',
         memRefresh: '刷新',
-        syncNasSourceLabel: 'NAS 归档位置', syncEditBtn: '编辑归档文件', syncDeleteBtn: '删除归档', syncDeleteConfirm: '将删除该会话的归档，并把左侧面板的会话任务一并移除，不可恢复。确认删除？', syncEditing: '正在编辑归档文件', syncSavedOk: '归档已保存', syncDeletedOk: '归档已删除，左侧会话如残留请手动移除', syncNotSyncedYet: '尚未同步过——先同步生成文件', bulkEdit: '全局记忆', bulkTitle: '全局记忆（整篇文档）', bulkSave: '全部保存', bulkSaving: '保存中…', bulkSaved: '已保存', bulkHint: '每条记忆以 --- frontmatter 开头（必须含 title）。随意增删改块，保存后整体替换全局记忆库。', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
+        syncNasSourceLabel: 'NAS 归档位置', syncEditBtn: '编辑归档文件', syncViewHint: '点击查看并编辑该会话归档', syncDeleteBtn: '删除归档', syncDeleteConfirm: '将删除该会话的归档，并把左侧面板的会话任务一并移除，不可恢复。确认删除？', syncEditing: '正在编辑归档文件', syncSavedOk: '归档已保存', syncDeletedOk: '归档已删除，左侧会话如残留请手动移除', syncNotSyncedYet: '尚未同步过——先同步生成文件', bulkEdit: '全局记忆', bulkTitle: '全局记忆（整篇文档）', bulkSave: '全部保存', bulkSaving: '保存中…', bulkSaved: '已保存', bulkHint: '每条记忆以 --- frontmatter 开头（必须含 title）。随意增删改块，保存后整体替换全局记忆库。', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
         impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
         upTitle: '值得升级的记忆', upFromSession: '来自会话', upDismiss: '不再显示', upMore: '展开更多 {n} 条', upLess: '收起', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
         memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
@@ -711,7 +711,7 @@ window.__ModuleLoader__.load({
         // eslint-disable-next-line react-hooks/exhaustive-deps
       }, [])
       return h('div', { className: 'kb-modal-back', onPointerDown: (event) => { if (event.target === event.currentTarget) props.onClose() } },
-        h('div', { className: 'kb-modal', role: 'dialog', 'aria-label': props.title },
+        h('div', { className: 'kb-modal', role: 'dialog', 'aria-label': props.title, style: props.style },
           h('h3', { className: 'kb-modal-title' }, props.title),
           props.children,
         ))
@@ -1508,7 +1508,7 @@ window.__ModuleLoader__.load({
       const openSessionEdit = async (sessionId) => {
         setEditSessionId(sessionId); setEditSessionBusy('load')
         try {
-          const data = await postKb('sync-archive-read', { sessionId })
+          const data = await api('sync-archive-read', { sessionId })
           setEditSessionFiles(data.files ?? {})
         } catch (error) { showToast(t('loadFailed') + ': ' + (error instanceof Error ? error.message : ''), true); setEditSessionId(undefined) }
         finally { setEditSessionBusy('') }
@@ -1528,6 +1528,7 @@ window.__ModuleLoader__.load({
         try {
           await postKb('sync-archive-delete', { sessionId })
           showToast(t('syncDeletedOk'))
+          if (editSessionId === sessionId) setEditSessionId(undefined)
           void reload()
         } catch (error) { showToast(t('opFailed') + ': ' + (error instanceof Error ? error.message : ''), true) }
       }
@@ -1755,32 +1756,15 @@ window.__ModuleLoader__.load({
                 : h('div', { className: 'kb-sync-session-grid', style: { display: 'grid', border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)', overflowY: 'auto', maxHeight: 300 } },
                   ...syncSessions.map((session) => {
                     const synced = syncIndex[session.id] !== undefined
-                    return h('label', { key: session.id, className: 'kb-session-row' },
+                    return h('div', { key: session.id, className: 'kb-session-row' },
                       h('input', { type: 'checkbox', checked: syncChecked[session.id] === true,
                         onChange: (event) => setSyncChecked((prev) => ({ ...prev, [session.id]: event.target.checked })) }),
-                      h('div', { style: { flex: 1, minWidth: 0 } },
+                      h('div', { style: { flex: 1, minWidth: 0, cursor: 'pointer' }, title: t('syncViewHint'), onClick: () => openSessionEdit(session.id) },
                         h('div', { style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 } }, session.title),
                         h('div', { style: { fontSize: 10, opacity: 0.5 } }, `${(session.updated ?? '').slice(0, 10)} · ${(session.bytes / 1024).toFixed(0)} KB`)),
                       synced && h('span', { className: 'kb-status kb-status-ok' }, t('syncSynced')),
-                      h('div', { style: { display: 'flex', gap: 2, flex: 'none' } },
-                        h('button', { className: 'kb-icon-btn', title: t('syncEditBtn'), onClick: () => editSessionId === session.id ? setEditSessionId(undefined) : openSessionEdit(session.id) }, SyncIcons.pencil(13)),
-                        h('button', { className: 'kb-icon-btn', title: t('syncDeleteBtn'), onClick: () => deleteSessionArchive(session.id) }, SyncIcons.trash(13))),
-                      editSessionId === session.id && h('div', { style: { display: 'grid', gap: 6, padding: 10, background: 'var(--dsw-alias-bg-layer-2)', borderRadius: 'var(--dsw-radius-sm)', margin: '4px 0 4px 28px', borderLeft: '2px solid var(--dsw-alias-brand-primary)' } },
-                        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-                          h('span', { className: 'kb-diag-key', style: { flex: 1 } }, t('syncEditing')),
-                          editSessionBusy === 'save' ? h('span', { className: 'kb-hint' }, t('bulkSaving')) :
-                          h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', onClick: saveSessionEdit }, t('bulkSave')),
-                          h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setEditSessionId(undefined) }, t('cancel'))),
-                        editSessionBusy === 'load' ? h('div', { className: 'kb-hint' }, t('syncLoading')) :
-                        editSessionFiles !== undefined && Object.keys(editSessionFiles).length === 0 ? h('div', { className: 'kb-hint' }, t('syncNotSyncedYet')) :
-                        editSessionFiles !== undefined && Object.entries(editSessionFiles).map(([name, content]) => h('div', { key: name, style: { display: 'grid', gap: 4 } },
-                          h('code', { style: { fontSize: 11, opacity: 0.7 } }, name),
-                          h('textarea', { value: content, onChange: (event) => setEditSessionFiles((prev) => ({ ...prev, [name]: event.target.value })),
-                            spellCheck: false,
-                            style: { width: '100%', minHeight: 120, resize: 'vertical', fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace', fontSize: 12, lineHeight: 1.5,
-                              border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)', padding: 8,
-                              background: 'var(--dsw-alias-bg-base)', color: 'var(--dsw-alias-label-primary)', outline: 'none' } })))),
-                    )
+                      h('button', { className: 'kb-icon-btn', title: t('syncEditBtn'), onClick: () => openSessionEdit(session.id) }, SyncIcons.pencil(13)),
+                      h('button', { className: 'kb-icon-btn', title: t('syncDeleteBtn'), onClick: () => deleteSessionArchive(session.id) }, SyncIcons.trash(13)))
                   })),
             syncSessions !== undefined && syncSessions.length > 0 && h('div', { style: { display: 'flex', gap: 8 } },
               h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: syncBusy !== '', onClick: () => runSync(false) }, syncBusy === 'sel' ? '…' : t('syncSelected')),
@@ -1862,6 +1846,26 @@ window.__ModuleLoader__.load({
             impPlan.projectFiles > 0 && h('div', { style: { fontSize: 11, opacity: 0.6 } }, `${t('impKindProject')}: ${impPlan.projectFiles}`),
             h('div', { className: 'kb-hint', style: { fontSize: 11 } }, t('impSelectHint'))),
           impDoneInfo !== undefined && h('div', { className: 'kb-status kb-status-ok' }, `${t('impDone')} ${impDoneInfo.notes}+${impDoneInfo.assets} · ${t('impAfterDone')}`)),
+        // ---------- 会话归档弹窗 ----------
+        editSessionId !== undefined && h(Modal, {
+          title: t('syncEditing') + (syncSessions !== undefined && syncSessions.find((s) => s.id === editSessionId) ? ' · ' + syncSessions.find((s) => s.id === editSessionId).title : ''),
+          onClose: () => setEditSessionId(undefined),
+          style: { minWidth: 520, maxWidth: '90vw', maxHeight: '82vh' },
+        },
+          h('div', { style: { display: 'grid', gap: 8, maxHeight: '58vh', overflowY: 'auto' } },
+            editSessionBusy === 'load' ? h('div', { className: 'kb-hint' }, t('syncLoading')) :
+            editSessionFiles !== undefined && Object.keys(editSessionFiles).length === 0 ? h('div', { className: 'kb-hint' }, t('syncNotSyncedYet')) :
+            editSessionFiles !== undefined && Object.entries(editSessionFiles).map(([name, content]) => h('div', { key: name, style: { display: 'grid', gap: 4 } },
+              h('code', { style: { fontSize: 11, opacity: 0.7 } }, name),
+              h('textarea', { value: content, onChange: (event) => setEditSessionFiles((prev) => ({ ...prev, [name]: event.target.value })),
+                spellCheck: false,
+                style: { width: '100%', minHeight: 140, resize: 'vertical', fontFamily: 'ui-monospace,SFMono-Regular,Menlo,monospace', fontSize: 12, lineHeight: 1.5,
+                  border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 'var(--dsw-radius-sm)', padding: 8,
+                  background: 'var(--dsw-alias-bg-base)', color: 'var(--dsw-alias-label-primary)', outline: 'none' } })))),
+          h('div', { className: 'kb-modal-actions' },
+            h('button', { className: 'kb-btn kb-btn-sm', disabled: editSessionBusy === 'save', onClick: () => deleteSessionArchive(editSessionId) }, SyncIcons.trash(13), ' ', t('syncDeleteBtn')),
+            h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setEditSessionId(undefined) }, t('cancel')),
+            h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: editSessionBusy === 'save', onClick: saveSessionEdit }, editSessionBusy === 'save' ? t('bulkSaving') : t('bulkSave'))))
       )
     }
 
