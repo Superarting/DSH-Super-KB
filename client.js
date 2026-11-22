@@ -420,6 +420,13 @@ window.__ModuleLoader__.load({
 .kb-setting-label svg{flex:none;opacity:.7}
 .kb-setting-row>select,.kb-setting-row>.kb-input{flex:1 1 160px;min-width:120px;max-width:100%}
 .kb-setting-row>div[style*="flex"]{flex:1 1 200px;min-width:0;flex-wrap:wrap}
+/* 归档位置：标签与控件上下换行堆叠 */
+.kb-setting-row-stacked{display:grid;grid-template-columns:1fr;gap:5px;align-items:stretch}
+.kb-setting-row-stacked>.kb-setting-label{min-width:0;flex:none}
+.kb-setting-row-stacked>.kb-input,.kb-setting-row-stacked>select{width:100%;flex:none}
+/* 下拉框过长省略 + 悬浮完整提示 */
+.kb-select-ellipsis{text-overflow:ellipsis;white-space:nowrap;overflow:hidden;max-width:100%}
+.kb-select-ellipsis option{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
 .kb-setting-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45;overflow-wrap:anywhere}
 /* 分区节奏：section 间距统一 */
 .kb-mem-section{padding:12px;display:grid;gap:8px;grid-template-columns:minmax(0,1fr);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);margin-top:12px;min-width:0}
@@ -1825,7 +1832,7 @@ window.__ModuleLoader__.load({
                   h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => { setSyncPref({ target: 'local' }); setSyncPath(''); } }), t('syncTargetLocal')),
                 h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
                   h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => { setSyncPref({ target: 'nas' }); setSyncPath(''); } }), SyncIcons.cloud(13), t('syncTargetNas'))),
-            h('div', { className: 'kb-setting-row' },
+            h('div', { className: 'kb-setting-row kb-setting-row-stacked' },
               h('span', { className: 'kb-setting-label' }, t('syncNasSourceLabel')),
               syncTarget === 'local'
                 ? h('select', { className: 'kb-input', value: syncSourceId ?? (localSources[0]?.id ?? ''),
@@ -1841,13 +1848,13 @@ window.__ModuleLoader__.load({
                           '📥 ' + source.name + ' \u00b7 ' + source.site))))),
             h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, t('syncTargetFolder')),
-              h('select', { className: 'kb-input', value: syncPath,
+              h('select', { className: 'kb-input kb-select-ellipsis', value: syncPath,
+                title: syncPath || t('syncTargetBrowse'),
                 onFocus: () => { const sid = syncTarget === 'local' ? (syncSourceId ?? (localSources[0]?.id ?? '')) : (nasSyncSourceId || (nasSources[0]?.id ?? '')); void browseSyncPath(syncTarget, sid) },
                 disabled: syncTarget === 'nas' && nasSources.length === 0,
                 onChange: (event) => setSyncPath(event.target.value) },
                 syncPathLoading ? h('option', { value: '' }, t('syncTargetLoading')) : h('option', { value: '' }, syncPathOptions.length === 0 ? t('syncTargetBrowse') : t('syncTargetRoot')),
-                ...syncPathOptions.map(opt => h('option', { key: opt.path, value: opt.path }, `${'\u00a0'.repeat(((opt.depth ?? 1) - 1) * 4)}📁 ${opt.path.split('/').pop()}${(opt.depth ?? 1) > 1 ? '  (' + opt.path + ')' : ''}`)))),
-            syncPath !== '' && h('div', { className: 'kb-setting-hint' }, t('syncTargetFolder') + ': ' + syncPath)),
+                ...syncPathOptions.map(opt => h('option', { key: opt.path, value: opt.path, title: opt.path }, `${'\u00a0'.repeat(((opt.depth ?? 1) - 1) * 4)}📁 ${opt.path.split('/').pop()}${(opt.depth ?? 1) > 1 ? '  (' + opt.path + ')' : ''}`))))),
             h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, SyncIcons.gear(13), t('syncAuto')),
               h(Switch, { on: syncAuto === true, onChange: (value) => setSyncPref({ autoSync: value }), label: t('syncAutoHint') })),
