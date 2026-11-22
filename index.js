@@ -1884,6 +1884,7 @@ async function externalImportExecute(ctx, sourceDir, options) {
 const DSH_SESSIONS_ROOT = `${(typeof process !== 'undefined' ? process.env?.HOME : undefined) ?? ''}/.dsh/sessions`
 const DSH_PROJCACHE_DIR = `${(typeof process !== 'undefined' ? process.env?.HOME : undefined) ?? ''}/.dsh/storages/session_projcache/sessions`
 const SYNC_ARCHIVE_DIR = 'DSH会话归档'
+const SYNC_EXCLUDED_FILE = '.sync-excluded.json'
 
 /** Deep-find the first string value under the given key (projcache shapes vary). */
 function deepFindString(value, key, depth = 0) {
@@ -1904,6 +1905,52 @@ function deepFindString(value, key, depth = 0) {
 }
 
 /** Every DSH session on this machine: id, human title, cwd, dates, transcript size. */
+async function readSyncExcluded(ctx) {
+  try {
+    const nodeFs = (await import('node:fs')).default
+    const nodePath = (await import('node:path')).default
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return []
+    const p = nodePath.resolve(memory.source.path, SYNC_ARCHIVE_DIR, SYNC_EXCLUDED_FILE)
+    const data = JSON.parse(await nodeFs.promises.readFile(p, 'utf8'))
+    return Array.isArray(data) ? data.filter(x => typeof x === 'string') : []
+  } catch { return [] }
+}
+
+async function addSyncExcluded(ctx, sessionId) {
+  try {
+    const nodeFs = (await import('node:fs')).default
+    const nodePath = (await import('node:path')).default
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return false
+    const dir = nodePath.resolve(memory.source.path, SYNC_ARCHIVE_DIR)
+    await nodeFs.promises.mkdir(dir, { recursive: true })
+    const p = nodePath.resolve(dir, SYNC_EXCLUDED_FILE)
+    let list = []
+    try { list = JSON.parse(await nodeFs.promises.readFile(p, 'utf8')) } catch {}
+    if (!Array.isArray(list)) list = []
+    if (!list.includes(sessionId)) list.push(sessionId)
+    await nodeFs.promises.writeFile(p, JSON.stringify(list, null, 2), 'utf8')
+    return true
+  } catch { return false }
+}
+
+async function removeSyncExcluded(ctx, sessionId) {
+  try {
+    const nodeFs = (await import('node:fs')).default
+    const nodePath = (await import('node:path')).default
+    const memory = await memoryRoot(ctx)
+    if (memory === undefined) return false
+    const p = nodePath.resolve(memory.source.path, SYNC_ARCHIVE_DIR, SYNC_EXCLUDED_FILE)
+    let list = []
+    try { list = JSON.parse(await nodeFs.promises.readFile(p, 'utf8')) } catch {}
+    if (!Array.isArray(list)) list = []
+    const next = list.filter(x => x !== sessionId)
+    await nodeFs.promises.writeFile(p, JSON.stringify(next, null, 2), 'utf8')
+    return true
+  } catch { return false }
+}
+
 async function listDshSessions() {
   const nodeFs = (await import('node:fs')).default
   const nodePath = (await import('node:path')).default
@@ -2145,7 +2192,8 @@ async function syncOneSession(ctx, session, target, targetSource) {
 
 /** Sync a set of sessions (or all) to the chosen target. */
 async function syncSessions(ctx, body) {
-  const all = await listDshSessions()
+  const excluded = await readSyncExcluded(ctx)
+  const all = (await listDshSessions()).filter(s => !excluded.includes(s.id))
   if (all.length === 0) return fail(404, 'no-sessions', 'no DSH sessions found on this machine')
   const target = body?.target === 'nas' ? 'nas' : 'local'
   let targetSource
@@ -2609,7 +2657,9 @@ async function memoryRoute(ctx, request, op) {
       }
     } catch {}
     try { await fs.rm(nodePath.join(DSH_PROJCACHE_DIR, `session-${sessionId}.json`), { force: true }) } catch {}
-    return okPayload({ removed, sessionRemoved, note: 'archive + left-panel session removed' })
+    // 标记排除：之后自动/手动同步都不再重建此会话的归档
+    const excludedAdded = await addSyncExcluded(ctx, sessionId)
+    return okPayload({ removed, sessionRemoved, excludedAdded, note: 'archive + left-panel session removed; session excluded from future syncs' })
   }
 
   // ---------- session sync ----------
@@ -2642,9 +2692,11 @@ async function memoryRoute(ctx, request, op) {
     const nasSources = sources.filter(candidate => candidate.type === 'selfhost' && candidate.site)
       .map(candidate => ({ id: candidate.id, name: candidate.name, site: candidate.site, url: candidate.url }))
     const nasConfigured = memoryConfig().nasSyncSource
+    const excluded = await readSyncExcluded(ctx)
     return okPayload({
       sessions,
       syncIndex,
+      excluded,
       enabled: memoryConfig().sessionSyncEnabled,
       autoSync: memoryConfig().sessionAutoSync,
       target: memoryConfig().sessionSyncTarget,
@@ -2652,6 +2704,14 @@ async function memoryRoute(ctx, request, op) {
       nasSyncSourceId: memoryConfig().sessionSyncSource || nasConfigured,
       nasSyncEnabled: memoryConfig().nasSyncEnabled,
     })
+  }
+
+  if (op === 'sync-excluded-remove' && request.method === 'POST') {
+    const body = await readBody()
+    const sessionId = typeof body?.sessionId === 'string' ? body.sessionId : undefined
+    if (sessionId === undefined) return fail(400, 'bad-body', 'sessionId required')
+    const ok = await removeSyncExcluded(ctx, sessionId)
+    return okPayload({ removed: ok, sessionId })
   }
 
   if (op === 'session-sync' && request.method === 'POST') {

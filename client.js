@@ -101,7 +101,7 @@ window.__ModuleLoader__.load({
         syncMasterHint: 'Sync my sessions into the knowledge base so a new computer picks up where this one left off',
         syncAutoHint: 'New sessions sync automatically about 90 seconds after each turn ends',
         memRefresh: 'Refresh',
-        syncNasSourceLabel: 'NAS archive location', syncEditBtn: 'Edit archived files', syncViewHint: 'Click to view and edit this session archive', syncDeleteBtn: 'Delete archive', syncDeleteConfirm: 'Delete this session archive AND remove the session from the left panel? This cannot be undone.', syncEditing: 'Editing archived files', syncSavedOk: 'Archive saved', syncDeletedOk: 'Archive deleted', syncNotSyncedYet: 'Not synced yet — sync first to create files', bulkEdit: 'Bulk edit', bulkTitle: 'Global memories (one document)', bulkSave: 'Save all', bulkSaving: 'Saving…', bulkSaved: 'Saved', bulkHint: 'Each entry starts with a --- frontmatter block (title required). Edit freely: add new entries, delete blocks, or rewrite content — Save all replaces the global store.', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
+        syncNasSourceLabel: 'NAS archive location', syncEditBtn: 'Edit archived files', syncViewHint: 'Click to view and edit this session archive', syncDeleteBtn: 'Delete archive', syncDeleteConfirm: 'Delete this session archive AND remove the session from the left panel? This cannot be undone.', syncEditing: 'Editing archived files', syncSavedOk: 'Archive saved', syncDeletedOk: 'Archive deleted', syncExcludedHint: '{n} session(s) excluded from future syncs (deleted)', syncRestoreAll: 'Restore all', syncRestoreAllConfirm: 'Restore all excluded sessions to sync?', syncRestored: 'Sync restored', syncNotSyncedYet: 'Not synced yet — sync first to create files', bulkEdit: 'Bulk edit', bulkTitle: 'Global memories (one document)', bulkSave: 'Save all', bulkSaving: 'Saving…', bulkSaved: 'Saved', bulkHint: 'Each entry starts with a --- frontmatter block (title required). Edit freely: add new entries, delete blocks, or rewrite content — Save all replaces the global store.', syncTargetLoading: 'Loading folders…', syncTargetLabel: 'Sync destination', syncTargetFolder: 'Target folder', syncTargetBrowse: 'Open the dropdown to load the latest folders', syncTargetRoot: 'Source root', syncNasPickHint: 'Shows your configured self-hosted sources', syncNasEmpty: 'No self-hosted source with a folder — add one in Sources first',
         impPickFolder: 'Choose folder…', impAfterDone: 'New sessions can now pick up: say \u201Ccontinue <project name>\u201D',
         upTitle: 'Worth promoting?', upFromSession: 'From session', upDismiss: 'Dismiss', upMore: 'Show {n} more', upLess: 'Show less', upReasonDecision: 'decision record', upReasonPopular: 'frequently recalled', upToProject: '📁 Project', upToGeneral: '⭐ General', upDone: 'Promoted ✓', upEmpty: 'Nothing needs promotion right now',
         memBodyPlaceholder: 'What to remember… (first line becomes the title)', memKeywordsOptional: 'Keywords (optional, auto-extracted if empty)', memSaveBtn: 'Save memory',
@@ -220,7 +220,7 @@ window.__ModuleLoader__.load({
         syncMasterHint: '把我的会话同步进知识库，新电脑接入后即可无缝接上进度',
         syncAutoHint: '每轮对话结束约90秒后自动同步新会话',
         memRefresh: '刷新',
-        syncNasSourceLabel: 'NAS 归档位置', syncEditBtn: '编辑归档文件', syncViewHint: '点击查看并编辑该会话归档', syncDeleteBtn: '删除归档', syncDeleteConfirm: '将删除该会话的归档，并把左侧面板的会话任务一并移除，不可恢复。确认删除？', syncEditing: '正在编辑归档文件', syncSavedOk: '归档已保存', syncDeletedOk: '归档已删除，左侧会话如残留请手动移除', syncNotSyncedYet: '尚未同步过——先同步生成文件', bulkEdit: '全局记忆', bulkTitle: '全局记忆（整篇文档）', bulkSave: '全部保存', bulkSaving: '保存中…', bulkSaved: '已保存', bulkHint: '每条记忆以 --- frontmatter 开头（必须含 title）。随意增删改块，保存后整体替换全局记忆库。', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
+        syncNasSourceLabel: 'NAS 归档位置', syncEditBtn: '编辑归档文件', syncViewHint: '点击查看并编辑该会话归档', syncDeleteBtn: '删除归档', syncDeleteConfirm: '将删除该会话的归档，并把左侧面板的会话任务一并移除，不可恢复。确认删除？', syncEditing: '正在编辑归档文件', syncSavedOk: '归档已保存', syncDeletedOk: '归档已删除，该会话以后不再自动同步', syncExcludedHint: '已排除 {n} 个会话的同步（删除过归档）', syncRestoreAll: '全部恢复', syncRestoreAllConfirm: '恢复所有被排除的会话同步？', syncRestored: '已恢复同步', syncNotSyncedYet: '尚未同步过——先同步生成文件', bulkEdit: '全局记忆', bulkTitle: '全局记忆（整篇文档）', bulkSave: '全部保存', bulkSaving: '保存中…', bulkSaved: '已保存', bulkHint: '每条记忆以 --- frontmatter 开头（必须含 title）。随意增删改块，保存后整体替换全局记忆库。', syncTargetLoading: '正在加载目录…', syncTargetLabel: '同步目标', syncTargetFolder: '目标文件夹', syncTargetBrowse: '点开下拉即加载最新目录', syncTargetRoot: '来源根目录', syncNasPickHint: '显示你已配置的自建知识库来源', syncNasEmpty: '暂无可用来源——请先在「来源」里添加自建知识库',
         impPickFolder: '选择文件夹…', impAfterDone: '新会话即可接续：说一句「继续 <项目名>」',
         upTitle: '值得升级的记忆', upFromSession: '来自会话', upDismiss: '不再显示', upMore: '展开更多 {n} 条', upLess: '收起', upReasonDecision: '决策记录', upReasonPopular: '高频召回', upToProject: '📁 升为项目', upToGeneral: '⭐ 升为通用', upDone: '已升级 ✓', upEmpty: '暂无需升级的记忆',
         memBodyPlaceholder: '记什么…（第一行会自动成为标题）', memKeywordsOptional: '关键词（可选，留空自动提取）', memSaveBtn: '保存记忆',
@@ -1371,6 +1371,7 @@ window.__ModuleLoader__.load({
       const [syncOn, setSyncOn] = React.useState(undefined) // undefined=未加载
       const [syncAuto, setSyncAuto] = React.useState(false)
       const [syncSessions, setSyncSessions] = React.useState(undefined)
+      const [syncExcluded, setSyncExcluded] = React.useState([])
       const [syncIndex, setSyncIndex] = React.useState({})
       const [syncTarget, setSyncTarget] = React.useState('local')
       const [syncChecked, setSyncChecked] = React.useState({})
@@ -1424,6 +1425,7 @@ window.__ModuleLoader__.load({
           setSyncAuto(data.autoSync === true)
           setSyncTarget(data.target === 'nas' ? 'nas' : 'local')
           setSyncSessions(data.sessions ?? [])
+          setSyncExcluded(Array.isArray(data.excluded) ? data.excluded : [])
           setSyncIndex(data.syncIndex ?? {})
           setNasSources(Array.isArray(data.nasSources) ? data.nasSources : [])
           setNasSyncSourceId(typeof data.nasSyncSourceId === 'string' ? data.nasSyncSourceId : '')
@@ -1531,6 +1533,13 @@ window.__ModuleLoader__.load({
           if (editSessionId === sessionId) setEditSessionId(undefined)
           void reload()
         } catch (error) { showToast(t('opFailed') + ': ' + (error instanceof Error ? error.message : ''), true) }
+      }
+      const restoreSyncExcluded = async (sessionId) => {
+        try {
+          await postKb('sync-excluded-remove', { sessionId })
+          showToast(t('syncRestored'))
+          void reloadSync()
+        } catch (error) { showToast(`${t('opFailed')}: ${error instanceof Error ? error.message : ''}`, true) }
       }
       const runSync = async (all) => {
         const ids = all ? (syncSessions ?? []).map(s => s.id) : Object.entries(syncChecked).filter(([, on]) => on).map(([id]) => id)
@@ -1779,7 +1788,15 @@ window.__ModuleLoader__.load({
             syncSessions !== undefined && syncSessions.length > 0 && h('div', { style: { display: 'flex', gap: 8 } },
               h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: syncBusy !== '', onClick: () => runSync(false) }, syncBusy === 'sel' ? '…' : t('syncSelected')),
               h('button', { className: 'kb-btn kb-btn-sm', disabled: syncBusy !== '', onClick: () => runSync(true) }, syncBusy === 'all' ? '…' : t('syncAll'))),
-            h('div', { className: 'kb-setting-hint' }, t('syncResumeHint')))),
+            h('div', { className: 'kb-setting-hint' }, t('syncResumeHint')),
+            syncExcluded.length > 0 && h('div', { className: 'kb-setting-hint', style: { marginTop: 6 } },
+              t('syncExcludedHint', { n: syncExcluded.length }),
+              h('button', { className: 'kb-btn kb-btn-sm', style: { marginLeft: 8 }, onClick: () => {
+                if (!window.confirm(t('syncRestoreAllConfirm'))) return
+                Promise.all(syncExcluded.map(id => postKb('sync-excluded-remove', { sessionId: id })))
+                  .then(() => { showToast(t('syncRestored')); void reloadSync() })
+                  .catch((e) => showToast(`${t('opFailed')}: ${e instanceof Error ? e.message : ''}`, true))
+              } }, t('syncRestoreAll')))),
         // ---------- 记忆列表 ----------
         editing !== undefined && h(MemoryEditor, {
           initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,
@@ -1877,6 +1894,7 @@ window.__ModuleLoader__.load({
             h('button', { className: 'kb-btn kb-btn-sm', disabled: editSessionBusy === 'save', onClick: () => deleteSessionArchive(editSessionId) }, SyncIcons.trash(13), ' ', t('syncDeleteBtn')),
             h('button', { className: 'kb-btn kb-btn-sm', onClick: () => setEditSessionId(undefined) }, t('cancel')),
             h('button', { className: 'kb-btn kb-btn-sm kb-btn-primary', disabled: editSessionBusy === 'save', onClick: saveSessionEdit }, editSessionBusy === 'save' ? t('bulkSaving') : t('bulkSave'))))
+        ),
       )
     }
 
