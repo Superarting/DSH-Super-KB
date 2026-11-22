@@ -1938,6 +1938,7 @@ async function listDshSessions() {
       out.push({
         id,
         title: (typeof titleVal === 'string' && titleVal.trim()) ? titleVal.trim() : '未命名会话',
+        workspace: nodePath.basename(root),
         cwd: deepFindString(meta, 'cwd') ?? '',
         created: deepFindString(meta, 'createdAt') ?? undefined,
         updated: stat.mtime.toISOString(),
@@ -2595,15 +2596,28 @@ async function memoryRoute(ctx, request, op) {
 
   // ---------- session sync ----------
   if (op === 'session-list') {
-    const sessions = await listDshSessions()
-    // 已同步徽标：读本地归档根的 .sync-index.json
+    const allSessions = await listDshSessions()
+    // 只保留 deepseek-harness 工作区的会话，排除其他工作区与 workbuddy 导入
+    const WORKSPACE_TOKEN = 'deepseek-harness'
+    const sessions = allSessions.filter((s) => {
+      const ws = String(s.workspace ?? '')
+      const cwd = String(s.cwd ?? '')
+      const src = String(s.source ?? '')
+      if (src.toLowerCase().includes('workbuddy') || cwd.toLowerCase().includes('workbuddy')) return false
+      return ws.includes(WORKSPACE_TOKEN) || (cwd.includes(WORKSPACE_TOKEN) && cwd.length > 0)
+    })
+    // 已同步徽标：读本地归档根的 .sync-index.json；只保留当前会话的 key，移除残留
     let syncIndex = {}
     try {
       const nodePath = (await import('node:path')).default
       const nodeFs = (await import('node:fs')).default
       const sources = await readSourcesFromConfig(ctx)
       const source = sources.find(candidate => candidate.type === 'local')
-      if (source !== undefined) syncIndex = JSON.parse(await nodeFs.promises.readFile(nodePath.resolve(source.path, SYNC_ARCHIVE_DIR, '.sync-index.json'), 'utf8'))
+      if (source !== undefined) {
+        const full = JSON.parse(await nodeFs.promises.readFile(nodePath.resolve(source.path, SYNC_ARCHIVE_DIR, '.sync-index.json'), 'utf8'))
+        const ids = new Set(sessions.map((x) => x.id))
+        for (const [k, v] of Object.entries(full ?? {})) if (ids.has(k)) syncIndex[k] = v
+      }
     } catch {}
     // NAS 目标候选：所有配置了站点的 selfhost 来源（含名称，供下拉可视化选择）
     const sources = await readSourcesFromConfig(ctx)
