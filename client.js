@@ -91,7 +91,7 @@ window.__ModuleLoader__.load({
         memGlobalHint: 'Remembered in every session: your preferences, name-calling, habits', memWorkspaceHint: 'Only active in sessions of the chosen project folder', memSessionHint: 'Only belongs to this conversation; will not carry over',
         memInjectLine: '✓ {n} memories will be carried into every new session automatically',
         memMoreToggle: 'More actions',
-        syncTitle: 'Session sync', syncMasterTitle: 'Session sync', syncSwitch: 'Sync my sessions to the knowledge base',
+        syncTitle: 'Session sync', syncMasterTitle: 'Session sync', syncOffHint: 'Turn on the switch to view and manage this workspace\'s sessions (same sessions as the sidebar). The list below is memories, not sessions.', memListTitle: 'Memories', syncSwitch: 'Sync my sessions to the knowledge base',
         syncTargetLocal: 'Local folder', syncTargetNas: 'NAS', syncTargetHint: 'Choose where session handover packages are written. NAS writes go through your selfhost source and respect its write switch.',
         syncListTitle: 'Sessions on this machine', syncAll: 'Sync all', syncSelected: 'Sync selected', syncTarget: 'Target',
         syncSynced: 'Synced', syncNoSessions: 'No sessions found', syncLoading: 'Loading sessions…',
@@ -210,7 +210,7 @@ window.__ModuleLoader__.load({
         memGlobalHint: '所有会话都会记得：你的偏好、称呼、习惯', memWorkspaceHint: '只在所选项目文件夹的会话中生效', memSessionHint: '只属于这一次对话，不会带到以后',
         memInjectLine: '✓ 下个新会话将自动带上 {n} 条记忆',
         memMoreToggle: '更多操作',
-        syncTitle: '会话同步', syncMasterTitle: '会话同步', syncSwitch: '把我的会话同步到知识库',
+        syncTitle: '会话同步', syncMasterTitle: '会话同步', syncOffHint: '打开上方开关可查看和管理本工作区的会话（与左侧栏一致）。下方列表是记忆，不是会话。', memListTitle: '记忆列表', syncSwitch: '把我的会话同步到知识库',
         syncTargetLocal: '本地文件夹', syncTargetNas: 'NAS', syncTargetHint: '选择会话交接包的写入位置。NAS 写入经由你的自建知识库来源，并遵守该站点的写入开关。',
         syncListTitle: '本机会话', syncAll: '全部同步', syncSelected: '同步所选', syncTarget: '目标',
         syncSynced: '已同步', syncNoSessions: '没有找到会话', syncLoading: '正在加载会话…',
@@ -1736,6 +1736,7 @@ window.__ModuleLoader__.load({
             SyncIcons.refresh(15),
             h('span', { className: 'kb-mem-section-title' }, t('syncMasterTitle')),
             h(Switch, { on: syncOn === true, onChange: toggleSync, label: t('syncMasterHint') })),
+          syncOn !== true && h('div', { className: 'kb-setting-hint' }, t('syncOffHint')),
           syncOn === true && h('div', { style: { display: 'grid', gap: 8, fontSize: 12 } },
             h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, SyncIcons.monitor(13), t('syncTargetLabel')),
@@ -1801,6 +1802,8 @@ window.__ModuleLoader__.load({
         editing !== undefined && h(MemoryEditor, {
           initial: editing, onCancel: () => setEditing(undefined), onSave: saveEdit,
         }),
+        h('div', { className: 'kb-mem-section-head', style: { marginTop: 8 } },
+          h('span', { className: 'kb-mem-section-title' }, t('memListTitle'))),
         h('div', { className: 'kb-card', style: { padding: 4 } },
           filtered.length === 0
             ? h('div', { className: 'kb-empty', style: { padding: 20 } }, h('div', { className: 'kb-empty-desc' }, t('memEmpty')))
