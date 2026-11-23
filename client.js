@@ -427,6 +427,17 @@ window.__ModuleLoader__.load({
 /* 下拉框过长省略 + 悬浮完整提示 */
 .kb-select-ellipsis{text-overflow:ellipsis;white-space:nowrap;overflow:hidden;max-width:100%}
 .kb-select-ellipsis option{text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+/* 同步目标级联：稳定的垂直字段流，避免切换跳动 */
+.kb-sync-cascade{display:grid;gap:12px;font-size:12px;min-width:0}
+.kb-sync-field{display:grid;gap:5px;min-width:0}
+.kb-sync-field-label{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;color:var(--dsw-alias-label-secondary)}
+.kb-sync-field-label svg{opacity:.7}
+/* 分段选择器 */
+.kb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-layer-2);border:1px solid var(--dsw-alias-border-l1);width:fit-content;max-width:100%}
+.kb-seg-item{display:flex;align-items:center;gap:5px;padding:6px 12px;border:0;border-radius:var(--dsw-radius-sm);background:transparent;color:var(--dsw-alias-label-secondary);font-size:12px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background-color .15s,color .15s}
+@media (hover:hover){.kb-seg-item:hover{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}}
+.kb-seg-item[data-active="true"]{background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.kb-seg-item:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .kb-setting-hint{font-size:11px;color:var(--dsw-alias-label-secondary);line-height:1.45;overflow-wrap:anywhere}
 /* 分区节奏：section 间距统一 */
 .kb-mem-section{padding:12px;display:grid;gap:8px;grid-template-columns:minmax(0,1fr);border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-md);background:var(--dsw-alias-bg-secondary,transparent);margin-top:12px;min-width:0}
@@ -1553,12 +1564,33 @@ window.__ModuleLoader__.load({
       const browseSyncPath = React.useCallback(async (kind, sourceId) => {
         setSyncPathLoading(true)
         try {
-          const data = await postKb('sync-browse', { kind, sourceId, path: '' })
+          const data = await api('sync-browse', { kind, sourceId: sourceId ?? '', path: '' })
           const folders = (data.items ?? []).filter((item) => item.kind === 'folder')
           setSyncPathOptions(folders.map((f) => ({ path: f.name, depth: f.depth ?? 1 })))
         } catch { setSyncPathOptions([]) }
         finally { setSyncPathLoading(false) }
       }, [])
+      // 切换目标/来源后清空旧选择；目录由下方 effect 按当前目标/来源实时拉取
+      const switchSyncTarget = (target) => {
+        setSyncPref({ target })
+        setSyncPath('')
+        setSyncPathOptions([])
+      }
+      const switchSyncSource = (sid, kind) => {
+        if (kind === 'local') setSyncSourceId(sid)
+        else setSyncPref({ nasSyncSourceId: sid })
+        setSyncPath('')
+        setSyncPathOptions([])
+      }
+      // 目标/来源/来源列表任一变化，实时拉取对应目录（级联）
+      React.useEffect(() => {
+        if (syncOn !== true) return
+        const sid = syncTarget === 'local'
+          ? (syncSourceId ?? localSources[0]?.id)
+          : (nasSyncSourceId || nasSources[0]?.id)
+        if (!sid) return
+        void browseSyncPath(syncTarget, sid)
+      }, [syncOn, syncTarget, syncSourceId, localSources, nasSyncSourceId, nasSources, browseSyncPath])
       const pickImpFolder = async () => {
         try {
           const picked = typeof props.pickDirectory === 'function' ? await props.pickDirectory() : null
@@ -1824,37 +1856,35 @@ window.__ModuleLoader__.load({
             h('span', { className: 'kb-setting-label' }, t('syncSwitch')),
             h(Switch, { on: syncOn === true, onChange: toggleSync, label: t('syncMasterHint') })),
           syncOn !== true && h('div', { className: 'kb-setting-hint' }, t('syncOffHint')),
-          syncOn === true && h('div', { style: { display: 'grid', gap: 8, fontSize: 12 } },
-            h('div', { className: 'kb-setting-row' },
-              h('span', { className: 'kb-setting-label' }, SyncIcons.monitor(13), t('syncTargetLabel')),
-              h('div', { style: { display: 'flex', gap: 10 } },
-                h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
-                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'local', onChange: () => { setSyncPref({ target: 'local' }); setSyncPath(''); } }), t('syncTargetLocal')),
-                h('label', { style: { display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' } },
-                  h('input', { type: 'radio', name: 'kbsync-target', checked: syncTarget === 'nas', onChange: () => { setSyncPref({ target: 'nas' }); setSyncPath(''); } }), SyncIcons.cloud(13), t('syncTargetNas'))),
-            h('div', { className: 'kb-setting-row kb-setting-row-stacked' },
-              h('span', { className: 'kb-setting-label' }, t('syncNasSourceLabel')),
+          syncOn === true && h('div', { className: 'kb-sync-cascade' },
+            h('div', { className: 'kb-sync-field' },
+              h('div', { className: 'kb-sync-field-label' }, SyncIcons.monitor(13), t('syncTargetLabel')),
+              h('div', { className: 'kb-seg', role: 'radiogroup', 'aria-label': t('syncTargetLabel') },
+                h('button', { type: 'button', className: 'kb-seg-item', 'data-active': syncTarget === 'local' ? 'true' : 'false', role: 'radio', 'aria-checked': syncTarget === 'local', onClick: () => switchSyncTarget('local') }, t('syncTargetLocal')),
+                h('button', { type: 'button', className: 'kb-seg-item', 'data-active': syncTarget === 'nas' ? 'true' : 'false', role: 'radio', 'aria-checked': syncTarget === 'nas', onClick: () => switchSyncTarget('nas') }, SyncIcons.cloud(13), t('syncTargetNas')))),
+            h('div', { className: 'kb-sync-field' },
+              h('div', { className: 'kb-sync-field-label' }, t('syncNasSourceLabel')),
               syncTarget === 'local'
                 ? h('select', { className: 'kb-input', value: syncSourceId ?? (localSources[0]?.id ?? ''),
-                    onFocus: () => void browseSyncPath('local', syncSourceId ?? (localSources[0]?.id ?? '')),
-                    onChange: (event) => { setSyncSourceId(event.target.value); setSyncPath(''); } },
+                    onChange: (event) => switchSyncSource(event.target.value, 'local') },
                     ...localSources.map(source => h('option', { key: source.id, value: source.id }, '💾 ' + source.name)),
                     ...(localSources.length === 0 ? [h('option', { value: '' }, t('syncNasEmpty'))] : []))
                 : (nasSources.length === 0
                     ? h('span', { className: 'kb-status kb-status-warn' }, t('syncNasEmpty'))
                     : h('select', { className: 'kb-input', value: nasSyncSourceId || (nasSources[0]?.id ?? ''), title: t('syncNasPickHint'),
-                        onChange: (event) => { setSyncPref({ nasSyncSourceId: event.target.value }); setSyncPath(''); } },
+                        onChange: (event) => switchSyncSource(event.target.value, 'nas') },
                         ...nasSources.map(source => h('option', { key: source.id, value: source.id },
                           '📥 ' + source.name + ' \u00b7 ' + source.site))))),
-            h('div', { className: 'kb-setting-row' },
-              h('span', { className: 'kb-setting-label' }, t('syncTargetFolder')),
+            h('div', { className: 'kb-sync-field' },
+              h('div', { className: 'kb-sync-field-label' },
+                t('syncTargetFolder'),
+                syncPathLoading && h('span', { style: { opacity: .6, fontWeight: 400 } }, ' · ' + t('syncTargetLoading'))),
               h('select', { className: 'kb-input kb-select-ellipsis', value: syncPath,
                 title: syncPath || t('syncTargetBrowse'),
-                onFocus: () => { const sid = syncTarget === 'local' ? (syncSourceId ?? (localSources[0]?.id ?? '')) : (nasSyncSourceId || (nasSources[0]?.id ?? '')); void browseSyncPath(syncTarget, sid) },
                 disabled: syncTarget === 'nas' && nasSources.length === 0,
                 onChange: (event) => setSyncPath(event.target.value) },
                 syncPathLoading ? h('option', { value: '' }, t('syncTargetLoading')) : h('option', { value: '' }, syncPathOptions.length === 0 ? t('syncTargetBrowse') : t('syncTargetRoot')),
-                ...syncPathOptions.map(opt => h('option', { key: opt.path, value: opt.path, title: opt.path }, `${'\u00a0'.repeat(((opt.depth ?? 1) - 1) * 4)}📁 ${opt.path.split('/').pop()}${(opt.depth ?? 1) > 1 ? '  (' + opt.path + ')' : ''}`))))),
+                ...syncPathOptions.map(opt => h('option', { key: opt.path, value: opt.path, title: opt.path }, `${'\u00a0'.repeat(((opt.depth ?? 1) - 1) * 4)}📁 ${opt.path.split('/').pop()}${(opt.depth ?? 1) > 1 ? '  (' + opt.path + ')' : ''}`)))),
             h('div', { className: 'kb-setting-row' },
               h('span', { className: 'kb-setting-label' }, SyncIcons.gear(13), t('syncAuto')),
               h(Switch, { on: syncAuto === true, onChange: (value) => setSyncPref({ autoSync: value }), label: t('syncAutoHint') })),
